@@ -33,3 +33,7 @@ The GitHub Actions Pages deploy workflow was written and reviewed but never exec
 ## Lessons Learned
 
 `create-vite`'s scaffolded output (template content, tsconfig structure, ESLint package shape) drifts from what any given plan assumes since it tracks upstream tooling versions — future unit plans that specify exact generated-file shapes should expect to verify against what the tool actually produces at implementation time rather than treating the plan's sketch as literal. Running the actual verification commands (not just writing config) surfaced two necessary additions (`.prettierignore` entry, `.gitignore` entry) that a purely plan-following implementation would have missed.
+
+## Amendment (during Unit 02 planning)
+
+While drafting the Unit 02 (engine) plan, it surfaced that `tsconfig.json` did not actually have `"strict": true` set, despite this file's own "Key Decisions" implying strict mode was verified during Unit 01. Corrected by adding `"strict": true` to `compilerOptions`, ahead of Unit 02 introducing the project's first real typed state model. Re-verified `npm run build`, `npm run lint`, `npm run test`, and `npm run format:check` all still pass with strict mode on — no code needed changes since there was no application logic yet. Committed separately from this unit's original commit.
