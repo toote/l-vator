@@ -24,8 +24,13 @@ interface TimedEvent {
   originFloor: FloorIndex;
 }
 
-/** Which floors independently generate arrivals under a given pattern. Ascending order. */
-function generatingFloors(pattern: ArrivalPattern, floorCount: number): FloorIndex[] {
+/**
+ * Which floors independently generate arrivals under a given pattern. Ascending order.
+ * Exported (Unit 06, dev_log/06_ui.md open question 4) so the UI's per-floor-rate override panel
+ * can reuse this exact rule rather than duplicating it — a drift risk if this rule ever changed.
+ * Purely additive; the generation logic itself is unchanged.
+ */
+export function generatingFloors(pattern: ArrivalPattern, floorCount: number): FloorIndex[] {
   if (pattern === 'up-peak') return [0];
   if (pattern === 'down-peak') {
     return Array.from({ length: floorCount }, (_, index) => index + 1);

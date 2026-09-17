@@ -1,6 +1,4 @@
 import './style.css';
+import { mount } from './ui/app';
 
-document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
-  <h1>L-vator</h1>
-  <p>Scaffolding placeholder — real UI arrives in a later unit.</p>
-`;
+mount(document.querySelector<HTMLDivElement>('#app')!);

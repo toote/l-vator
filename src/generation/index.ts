@@ -4,7 +4,7 @@
 export { createRng, deriveTrialSeeds, sampleExponentialGapMs } from './rng';
 export type { Rng, Seed } from './rng';
 
-export { generateRandomArrivals } from './randomArrivals';
+export { generateRandomArrivals, generatingFloors } from './randomArrivals';
 export { loadScriptedScenario } from './scriptedScenario';
 export { generateTrialBatch } from './trialBatch';
 export { runTrialBatch } from './trialRunner';
