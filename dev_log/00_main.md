@@ -46,6 +46,7 @@ Unit 01 (scaffolding) complete. Design/requirements phase complete (captured via
 - Three dispatch algorithms (`src/algorithms/`): FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching — auto-discovered via `import.meta.glob`, ready for Units 04/05/06 to run and compare.
 - Call generation (`src/generation/`, `src/scenarios/`): seeded random arrivals (up-peak/down-peak/random patterns), scripted scenarios, and the fairness-guaranteed trial batch/runner every algorithm comparison will run through.
 - Metrics (`src/metrics/`): eight headline metrics per algorithm (wait/travel time, max wait, distance, throughput, occupancy, deadhead %, unserved count/%), pooled correctly across N seeded trials.
+- UI (`src/ui/`): config panel (building/fleet/timing/arrival, random or scripted scenarios), algorithm selection, run controls, and a plain results table proving the full pipeline works end-to-end in a browser.
 
 ## Units Implemented
 
@@ -56,6 +57,7 @@ Unit 01 (scaffolding) complete. Design/requirements phase complete (captured via
 * **[03](03_algorithms.md)**: Algorithms - FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching; auto-discovered via `import.meta.glob`. See [03_algorithms_done.md](03_algorithms_done.md) for completion details.
 * **[04](04_generation.md)**: Generation - seeded random arrival generation, scripted scenarios, fairness-guaranteed trial batch/runner. See [04_generation_done.md](04_generation_done.md) for completion details.
 * **[05](05_metrics.md)**: Metrics - eight headline metrics per algorithm, pooled correctly across N seeded trials. See [05_metrics_done.md](05_metrics_done.md) for completion details.
+* **[06](06_ui.md)**: UI - config panel, algorithm selection, run controls, plain results table. See [06_ui_done.md](06_ui_done.md) for completion details.
 
 ### Units In Progress
 
@@ -63,7 +65,6 @@ None yet.
 
 ## Planned Units
 
-* **06**: UI — building/fleet/timing config panel (floors, elevators, capacity, floor-travel time, door-dwell base + multiplier, arrival rate, origin/destination pattern, per-floor rate, trial count), run controls, algorithm selection for comparison.
 * **07**: Results presentation — animated replay of a selected run (e.g. "Run 7 of 20") plus a dashboard aggregating metrics across all runs and algorithms.
 
 ### Future Enhancements (explicitly out of baseline scope)
