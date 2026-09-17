@@ -168,17 +168,39 @@ export function runSimulation(
     elevator.onboard = staying;
     elevator.carButtons.delete(floor);
 
-    // Boarding: waiting passengers at this floor matching the elevator's arrival direction,
-    // up to remaining capacity, first-waiting-first-served.
+    // Boarding: waiting passengers at this floor matching the direction this stop is actually
+    // serving, up to remaining capacity, first-waiting-first-served.
     //
+    // The direction served is NOT simply `elevator.direction` (the direction the elevator
+    // physically traveled to REACH this floor) — those are different things. A call registered
+    // "floor 8, down" can only be reached by a car currently below floor 8, which must travel UP
+    // to get there; the elevator's arrival direction is 'up' even though the call — and the
+    // passenger waiting under it — is 'down'. Using arrival direction as the boarding filter in
+    // that case finds zero candidates, produces a zero-passenger stop, and therefore a zero-ms
+    // dwell (see door.ts) that re-fires the exact same stop forever at the same timestamp: an
+    // infinite loop with no time advancement (caught during Unit 03 testing, see
+    // dev_log/02_engine_done.md's amendment for this fix).
+    //
+    // Correct rule: prefer the call matching `elevator.direction` if one is active here (the
+    // normal case — arrival direction usually IS the service direction); otherwise, if the call
+    // is only active in the OPPOSITE direction, serve that instead (nothing else explains
+    // stopping here for a pickup); otherwise fall back to `elevator.direction` as before, which
+    // correctly yields zero boarding candidates for a pure drop-off stop with no active call here.
     // `elevator.direction` is null only when this stop was issued directly from `idle` (the
-    // elevator was already sitting at the call floor and never had to travel to it) — there is
-    // no "arrival direction" to speak of in that case, so any waiting direction at this floor is
-    // eligible. This is a gap-fill for a case the plan doesn't spell out explicitly; see
-    // dev_log/02_engine.md AI Interactions for the reasoning.
-    const boardDirection = elevator.direction;
-    const servicedDirections: Direction[] =
-      boardDirection !== null ? [boardDirection] : ['up', 'down'];
+    // elevator was already sitting at the call floor and never had to travel to it) — there is no
+    // "arrival direction" to speak of in that case, so any waiting direction at this floor is
+    // eligible, unchanged from before.
+    let servicedDirections: Direction[];
+    if (elevator.direction === null) {
+      servicedDirections = ['up', 'down'];
+    } else if (hasWaitingCallAt(state.waitingPassengers, floor, elevator.direction)) {
+      servicedDirections = [elevator.direction];
+    } else {
+      const opposite: Direction = elevator.direction === 'up' ? 'down' : 'up';
+      servicedDirections = hasWaitingCallAt(state.waitingPassengers, floor, opposite)
+        ? [opposite]
+        : [elevator.direction];
+    }
 
     const hadActiveCallBefore = new Map<Direction, boolean>();
     for (const dir of servicedDirections) {
@@ -186,10 +208,7 @@ export function runSimulation(
     }
 
     const candidates = state.waitingPassengers
-      .filter(
-        (p) =>
-          p.originFloor === floor && (boardDirection === null || p.direction === boardDirection),
-      )
+      .filter((p) => p.originFloor === floor && servicedDirections.includes(p.direction))
       .sort((a, b) => a.waitingSince - b.waitingSince);
     const capacityRemaining = Math.max(0, config.capacity - elevator.onboard.length);
     const boarding = candidates.slice(0, capacityRemaining);

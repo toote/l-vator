@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DispatchSnapshot } from './dispatch';
+import type { DispatchHook, DispatchSnapshot } from './dispatch';
 import { runSimulation } from './simulation';
 import { buildBasicConfig, createGreedyStopAndGoHook, passengerArrival } from './testFixtures';
 import type { HallCall } from './types';
@@ -160,6 +160,83 @@ describe('presence-only hall calls', () => {
       expect(floors.includes(2)).toBe(false);
       expect(floors.indexOf(4)).toBeLessThan(floors.indexOf(3)); // B before C
     }
+  });
+});
+
+describe('boarding direction vs. arrival direction', () => {
+  it('boards a passenger even when the elevator had to travel the opposite way to reach the call', () => {
+    // A call registered "floor 4, down" can only be reached by a car below floor 4, which has to
+    // travel UP to get there - a completely ordinary elevator scenario. Boarding must be driven
+    // by the call's direction, not by which way the elevator happened to travel to arrive (a
+    // real bug once: using arrival direction produced zero boarding candidates, zero dwell time,
+    // and an infinite same-timestamp stop loop - caught via Unit 03's algorithm tests).
+    const config = buildBasicConfig({
+      floorCount: 5,
+      floorTravelTimeMs: 100,
+      doorDwellBaseMs: 50,
+      doorDwellPerPassengerMultiplier: 0,
+    });
+
+    const hook: DispatchHook = (snapshot) => {
+      const elevator = snapshot.elevators[0];
+      if (!elevator) return [];
+      // Deliberately checks for ANY active call here, regardless of direction — this test wants
+      // to force a 'stop' attempt purely by floor match, to exercise the engine's own direction
+      // resolution rather than a hook that pre-filters by direction the way a real algorithm would.
+      const hasCallHere = snapshot.activeHallCalls.some((c) => c.floor === elevator.currentFloor);
+      const hasButtonHere = elevator.carButtons.includes(elevator.currentFloor);
+      if (hasCallHere || hasButtonHere) {
+        return [{ type: 'stop', elevatorId: elevator.id }];
+      }
+      if (elevator.currentFloor < 4) {
+        return [{ type: 'travel', elevatorId: elevator.id, direction: 'up' }];
+      }
+      return [{ type: 'idle', elevatorId: elevator.id }]; // nothing left to do at floor 4
+    };
+
+    const { log, finalState } = runSimulation(
+      config,
+      [passengerArrival('p1', 4, 'down', 0, 0)],
+      hook,
+      { maxTimeMs: 10_000 },
+    );
+
+    const boarded = log.filter((e) => e.type === 'passengerBoarded');
+    expect(boarded).toHaveLength(1);
+    expect(boarded[0]).toMatchObject({ passengerId: 'p1', floor: 4 });
+    expect(finalState.waitingPassengers).toEqual([]);
+
+    // The stop actually resolved (nonzero dwell, doors closed after opening) rather than looping.
+    const opened = log.find((e) => e.type === 'doorsOpened');
+    const closed = log.find((e) => e.type === 'doorsClosed');
+    expect(opened).toBeDefined();
+    expect(closed).toBeDefined();
+    expect(closed!.time).toBeGreaterThan(opened!.time);
+  });
+
+  it('boards no one on a pure drop-off stop when no call is active here in either direction', () => {
+    // Sanity check that the fix doesn't over-correct: a stop with a carButton but no active call
+    // (in the arrival direction OR the opposite one) still boards nobody, unchanged from before.
+    const config = buildBasicConfig({
+      floorCount: 5,
+      capacity: 4,
+      floorTravelTimeMs: 100,
+      doorDwellBaseMs: 50,
+      doorDwellPerPassengerMultiplier: 0,
+    });
+    const hook = createGreedyStopAndGoHook();
+
+    // Single passenger, boards at floor 0 (idle-issued stop), destination floor 3 - no one else
+    // ever registers a call at floor 3, so the eventual drop-off stop there has nothing to board.
+    const { log } = runSimulation(
+      config,
+      [passengerArrival('p1', 0, 'up', 3, 0)],
+      hook,
+      SAFETY_CUTOFF,
+    );
+
+    const dropoffBoardings = log.filter((e) => e.type === 'passengerBoarded' && e.floor === 3);
+    expect(dropoffBoardings).toHaveLength(0);
   });
 
   it('rejects a passenger-identifying field on HallCall at the type level (enforced by npm run build)', () => {
