@@ -65,12 +65,31 @@ function getActiveHallCalls(waitingPassengers: readonly Passenger[]): HallCall[]
   return calls;
 }
 
+/**
+ * Rejects a `BuildingConfig` that would let a zero-duration step defeat `maxTimeMs` and loop
+ * forever with no time advancement — the same failure pattern behind two prior fixes (see
+ * dev_log/02_engine_done.md's amendments). `doorDwellBaseMs` is the one currently reachable this
+ * way (computeDoorDwellMs's fix makes every stop cost at least `base`, but `base` itself must be
+ * positive for that guarantee to mean anything); validated here, at the single place every
+ * BuildingConfig funnels through, rather than at each of its callers.
+ */
+function validateBuildingConfig(config: BuildingConfig): void {
+  if (!(config.doorDwellBaseMs > 0)) {
+    throw new Error(
+      `BuildingConfig.doorDwellBaseMs must be > 0 (got ${config.doorDwellBaseMs}) — a ` +
+        'non-positive dwell time can produce a zero-duration stop that repeats forever with no ' +
+        'time advancement.',
+    );
+  }
+}
+
 export function runSimulation(
   config: BuildingConfig,
   script: ScriptedInput,
   dispatchHook: DispatchHook,
   options: RunSimulationOptions = {},
 ): RunSimulationResult {
+  validateBuildingConfig(config);
   const maxTimeMs = options.maxTimeMs ?? Number.POSITIVE_INFINITY;
 
   const state: BuildingState = {

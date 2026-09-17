@@ -120,6 +120,29 @@ describe('dispatch hook contract', () => {
   });
 });
 
+describe('building config validation', () => {
+  it('throws if doorDwellBaseMs is not positive', () => {
+    const zeroConfig = buildBasicConfig({ doorDwellBaseMs: 0 });
+    const negativeConfig = buildBasicConfig({ doorDwellBaseMs: -100 });
+    const noop = (): [] => [];
+
+    // A non-positive dwell time would let a zero-transaction stop loop forever with no time
+    // advancement (see dev_log/02_engine_done.md's amendments) — rejected up front instead.
+    expect(() => runSimulation(zeroConfig, [], noop, SAFETY_CUTOFF)).toThrow(
+      /doorDwellBaseMs must be > 0/,
+    );
+    expect(() => runSimulation(negativeConfig, [], noop, SAFETY_CUTOFF)).toThrow(
+      /doorDwellBaseMs must be > 0/,
+    );
+  });
+
+  it('accepts a positive doorDwellBaseMs (no false positives)', () => {
+    const config = buildBasicConfig({ doorDwellBaseMs: 1 });
+    const noop = (): [] => [];
+    expect(() => runSimulation(config, [], noop, SAFETY_CUTOFF)).not.toThrow();
+  });
+});
+
 describe('combined door-dwell timing', () => {
   it('computes dwell on the summed boarding+alighting total in a single door cycle, not two phases', () => {
     const config = buildBasicConfig({
