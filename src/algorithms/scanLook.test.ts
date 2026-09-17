@@ -116,6 +116,86 @@ describe('scanLook (integration)', () => {
   });
 });
 
+describe('scanLook (capacity gating: does not get stuck once full)', () => {
+  it('idle branch: a full elevator sitting on a pickup-only call routes toward its drop-off instead of stopping', () => {
+    // Regression test for a real bug: with no capacity check, a full elevator sitting at a floor
+    // with only an active (pickup) call would return 'stop' forever -- zero boarding (it's full),
+    // so nothing about the situation ever changes, latching it there permanently instead of
+    // routing to deliver the passengers it's already carrying. Same bug class already fixed in
+    // fcfsNearestCar.ts/nearestCarDirectional.ts, missed here until the developer reported it.
+    const hook = algorithm.createHook();
+    const snapshot = makeSnapshot({
+      elevators: [
+        makeElevator({
+          id: 'E1',
+          currentFloor: 2,
+          capacityRemaining: 0,
+          carButtons: [5], // onboard passenger destined for floor 5
+        }),
+      ],
+      activeHallCalls: [call(2, 'up')], // pickup-only call at the elevator's own floor
+    });
+
+    const actions = hook(snapshot);
+    expect(actions).toEqual([{ type: 'travel', elevatorId: 'E1', direction: 'up' }]);
+  });
+
+  it('committed-direction branch: a full elevator does not treat a same-direction call at its own floor as a reason to stop', () => {
+    const hook = algorithm.createHook();
+    const snapshot = makeSnapshot({
+      elevators: [
+        makeElevator({
+          id: 'E1',
+          currentFloor: 2,
+          state: 'moving',
+          direction: 'up',
+          capacityRemaining: 0,
+          carButtons: [5],
+        }),
+      ],
+      activeHallCalls: [call(2, 'up')],
+    });
+
+    const actions = hook(snapshot);
+    expect(actions).toEqual([{ type: 'travel', elevatorId: 'E1', direction: 'up' }]);
+  });
+
+  it('integration: a full elevator passing through its own assigned floor departs toward its drop-off instead of looping', () => {
+    // Deliberately keeps the elevator moving in ONE direction throughout (no backtrack), to
+    // isolate the capacity-gating fix from a separate, independent bug this investigation also
+    // turned up: SCAN/LOOK can strand a call behind an elevator that needs to backtrack to reach
+    // it, regardless of capacity (see dev_log/03_algorithms_done.md's amendment for that one —
+    // out of scope for this fix, flagged separately).
+    const config = buildConfig({
+      floorCount: 6,
+      elevatorCount: 1,
+      capacity: 2,
+      floorTravelTimeMs: 100,
+      doorDwellBaseMs: 50,
+      doorDwellPerPassengerMultiplier: 0,
+    });
+
+    // p1/p2 fill the elevator at floor 2 and ride to floor 5. p3, also at floor 2 and also going
+    // up, is left behind (capacity), but is irrelevant to this test's assertion -- the point is
+    // solely that the elevator doesn't get stuck re-opening its doors at floor 2 once full.
+    const script = [
+      arrival('p1', 2, 'up', 5, 0),
+      arrival('p2', 2, 'up', 5, 0),
+      arrival('p3', 2, 'up', 5, 0),
+    ];
+
+    const { log } = runSimulation(config, script, algorithm.createHook(), {
+      maxTimeMs: 10_000,
+    });
+
+    const doorsOpenedAtFloor2 = log.filter((e) => e.type === 'doorsOpened' && e.floor === 2);
+    expect(doorsOpenedAtFloor2).toHaveLength(1); // stops once, boards 2, then departs -- no loop
+
+    const alightedAtFloor5 = log.filter((e) => e.type === 'passengerAlighted' && e.floor === 5);
+    expect(alightedAtFloor5).toHaveLength(2); // both onboard passengers actually get delivered
+  });
+});
+
 describe('scanLook (hook-level)', () => {
   it('an idle elevator picks the initial direction toward the nearest pending floor', () => {
     const hook = algorithm.createHook();

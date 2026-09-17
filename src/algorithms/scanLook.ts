@@ -40,12 +40,26 @@ function closestFloor(floors: ReadonlySet<FloorIndex>, from: FloorIndex): FloorI
 
 function decide(snapshot: DispatchSnapshot, elevator: ElevatorSnapshot): DispatchAction {
   const currentFloor = elevator.currentFloor;
+  // A full elevator has nothing to gain by pursuing a PICKUP: it would board nobody, produce a
+  // zero-transaction dwell, and re-issue the identical decision forever, since nothing about its
+  // state (still full, call still active because nobody could board it) ever changes to break the
+  // cycle. A DROP-OFF is always worth pursuing regardless of capacity -- it's what frees capacity.
+  // So `pending` below only ever includes active-call floors when there's room to spare; car
+  // buttons (drop-offs) are included unconditionally. This must happen at `pending`'s construction,
+  // not just as an extra check on the final 'stop' decision -- excluding a call floor here also
+  // correctly keeps it out of the nearest/ahead/behind routing searches, so a full elevator
+  // doesn't get stuck treating an unreachable pickup as its nearest/only target instead of routing
+  // toward an actual drop-off elsewhere. See dev_log/00_main.md's amendment history for the full
+  // story (same bug class already fixed in fcfsNearestCar.ts/nearestCarDirectional.ts).
+  const hasCapacity = elevator.capacityRemaining > 0;
 
   if (elevator.direction === null) {
-    // Was idle: pick a direction toward the nearest pending floor (any car button or active
-    // call — direction of the call itself doesn't matter yet, since nothing is committed).
+    // Was idle: pick a direction toward the nearest pending floor (any car button, or an active
+    // call if there's room — direction of the call itself doesn't matter yet, nothing committed).
     const pending = new Set<FloorIndex>(elevator.carButtons);
-    for (const call of snapshot.activeHallCalls) pending.add(call.floor);
+    if (hasCapacity) {
+      for (const call of snapshot.activeHallCalls) pending.add(call.floor);
+    }
 
     if (pending.has(currentFloor)) {
       return { type: 'stop', elevatorId: elevator.id };
@@ -67,8 +81,10 @@ function decide(snapshot: DispatchSnapshot, elevator: ElevatorSnapshot): Dispatc
   // opposite-direction calls are served on the return sweep, not now (this IS the LOOK behavior).
   const direction = elevator.direction;
   const pending = new Set<FloorIndex>(elevator.carButtons);
-  for (const call of snapshot.activeHallCalls) {
-    if (call.direction === direction) pending.add(call.floor);
+  if (hasCapacity) {
+    for (const call of snapshot.activeHallCalls) {
+      if (call.direction === direction) pending.add(call.floor);
+    }
   }
 
   if (pending.has(currentFloor)) {
