@@ -62,6 +62,9 @@ export interface GroupedLog {
    * engine's own activeHallCalls ordering guarantee (see engine/simulation.ts's
    * getActiveHallCalls), purely for stable, deterministic presentation. */
   hallCalls: HallCallLogGroup[];
+  /** The building's configured per-floor travel duration -- see positionAtTime's "Idle-then-
+   * recalled" amendment for why this (not door events) is what anchors travel-start time. */
+  floorTravelTimeMs: number;
 }
 
 function hallCallKey(floor: FloorIndex, direction: Direction): string {
@@ -76,6 +79,7 @@ function hallCallKey(floor: FloorIndex, direction: Direction): string {
 export function groupReplayLog(
   log: readonly SimEventLogEntry[],
   elevatorIds: readonly string[],
+  floorTravelTimeMs: number,
 ): GroupedLog {
   const elevatorMap = new Map<string, ElevatorLogGroups>();
   for (const id of elevatorIds) {
@@ -137,6 +141,7 @@ export function groupReplayLog(
     // Non-null: every id in elevatorIds was seeded into elevatorMap above.
     elevators: elevatorIds.map((id) => elevatorMap.get(id)!),
     hallCalls: hallCallOrder.map((key) => hallCallMap.get(key)!),
+    floorTravelTimeMs,
   };
 }
 
@@ -160,16 +165,24 @@ export function countAtOrBefore<T extends Timed>(items: readonly T[], t: number)
 }
 
 /**
- * Corrected interpolation algorithm -- see dev_log/07_results.md's "Correction" note. Naively
- * interpolating linearly across the WHOLE span between two elevatorArrived entries is wrong
- * whenever the earlier one included a stop: doorsOpened is logged at the same timestamp as that
- * elevatorArrived, and the matching doorsClosed fires dwellMs later, so the true travel-start
- * time is doorsClosed's timestamp, not the earlier elevatorArrived's timestamp. Interpolating
- * across the full span (including the dwell) would show the elevator visibly creeping away from
- * the stop floor throughout the dwell, then creeping too slowly afterward.
+ * Corrected interpolation algorithm -- see dev_log/07_results.md's "Correction" note, and
+ * dev_log/07_results_done.md's "Idle-then-recalled" amendment for a second correction on top of
+ * it. Naively interpolating linearly across the WHOLE span between two elevatorArrived
+ * entries is wrong whenever the elevator paused before b -- whether dwelling with doors open at
+ * a stop, or sitting idle and unassigned for a stretch before finally being recalled to serve a
+ * still-active call elsewhere. Either way, the elevator isn't moving, so it should render fixed
+ * at `a.floor`, not creeping toward `b.floor`.
+ *
+ * Rather than detecting every possible reason for a pause (the original version only checked for
+ * a door-dwell at T_A, missing the idle-then-recalled case entirely -- an unassigned elevator can
+ * sit for an arbitrary stretch with no door event at all before it's finally dispatched), this
+ * works backward from something always true regardless of *why* the elevator paused: a
+ * floor-to-floor move always takes exactly `floorTravelTimeMs`, so motion toward `b` cannot have
+ * started before `b.time - floorTravelTimeMs`. Everything before that instant -- dwelling, idle,
+ * or both in sequence -- is fixed at `a.floor`.
  */
-function positionAtTime(group: ElevatorLogGroups, time: number): number {
-  const { arrivals, doorsOpened, doorsClosed } = group;
+function positionAtTime(group: ElevatorLogGroups, time: number, floorTravelTimeMs: number): number {
+  const { arrivals } = group;
 
   const arrivalIndex = countAtOrBefore(arrivals, time) - 1;
   if (arrivalIndex < 0) return 0; // before this elevator's first log entry -- starts at floor 0
@@ -178,23 +191,9 @@ function positionAtTime(group: ElevatorLogGroups, time: number): number {
 
   const b = arrivals[arrivalIndex + 1];
 
-  // Did a stop happen exactly at T_A (this elevator's doorsOpened at the same timestamp)?
-  const openIndex = countAtOrBefore(doorsOpened, a.time) - 1;
-  const dwellOpen = openIndex >= 0 && doorsOpened[openIndex].time === a.time;
-
-  let travelStart = a.time; // "passed straight through" default -- never stopped here
-  if (dwellOpen) {
-    const closeIndex = countAtOrBefore(doorsClosed, a.time); // first doorsClosed with time > T_A
-    const dwellClose = closeIndex < doorsClosed.length ? doorsClosed[closeIndex] : undefined;
-    if (dwellClose) {
-      if (time < dwellClose.time) return a.floor; // still dwelling -- fixed, no interpolation
-      travelStart = dwellClose.time; // motion resumes exactly here
-    }
-  }
-
-  const span = b.time - travelStart;
-  if (span <= 0) return a.floor; // degenerate timing guard -- not expected in practice
-  const fraction = (time - travelStart) / span;
+  const travelStart = b.time - floorTravelTimeMs;
+  if (time < travelStart) return a.floor; // still parked at A -- dwelling, idle, or both
+  const fraction = (time - travelStart) / floorTravelTimeMs;
   return a.floor + fraction * (b.floor - a.floor);
 }
 
@@ -223,7 +222,7 @@ export function computeReplayFrame(grouped: GroupedLog, time: number): ReplayFra
     time,
     elevators: grouped.elevators.map((group) => ({
       elevatorId: group.elevatorId,
-      position: positionAtTime(group, time),
+      position: positionAtTime(group, time, grouped.floorTravelTimeMs),
       doorsOpen: doorsOpenAtTime(group, time),
       onboardCount: onboardCountAtTime(group, time),
     })),

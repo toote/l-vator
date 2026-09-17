@@ -44,7 +44,11 @@ export function renderReplayView(state: AppState, render: () => void): HTMLEleme
   ).length;
 
   const elevatorIds = trialResult.result.finalState.elevators.map((elevator) => elevator.id);
-  const groupedLog = groupReplayLog(trialResult.result.log, elevatorIds);
+  const groupedLog = groupReplayLog(
+    trialResult.result.log,
+    elevatorIds,
+    run.building.floorTravelTimeMs,
+  );
   const maxTimeMs = trialResult.result.finalState.time;
 
   // Regenerated once per trial/algorithm selection, same point groupReplayLog is grouped -- see

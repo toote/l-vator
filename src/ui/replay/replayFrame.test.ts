@@ -29,7 +29,7 @@ describe('computeReplayFrame: position -- straight pass-through (no stop)', () =
     { type: 'elevatorArrived', time: 1000, elevatorId: 'E1', floor: 1 },
     { type: 'elevatorArrived', time: 2000, elevatorId: 'E1', floor: 2 },
   ];
-  const grouped = groupReplayLog(log, ['E1']);
+  const grouped = groupReplayLog(log, ['E1'], 1000);
 
   it('is floor 0 before the elevator’s first log entry', () => {
     expect(computeReplayFrame(grouped, 0).elevators[0].position).toBe(0);
@@ -63,7 +63,7 @@ describe('computeReplayFrame: position -- Correction regression (a stop DID occu
     { type: 'doorsClosed', time: 5000, elevatorId: 'E1', floor: 2 },
     { type: 'elevatorArrived', time: 6000, elevatorId: 'E1', floor: 3 },
   ];
-  const grouped = groupReplayLog(log, ['E1']);
+  const grouped = groupReplayLog(log, ['E1'], 1000);
 
   it('holds position fixed at floor 2 for the ENTIRE dwell window [2000, 5000)', () => {
     expect(computeReplayFrame(grouped, 2000).elevators[0].position).toBe(2);
@@ -98,6 +98,46 @@ describe('computeReplayFrame: position -- Correction regression (a stop DID occu
   });
 });
 
+describe('computeReplayFrame: position -- Idle-then-recalled regression (a long unassigned gap DID occur between two arrivals)', () => {
+  // Developer-reported: in the replay, an idle elevator parked at a floor could be seen "slowly
+  // moving" well before it was actually dispatched again. Root cause: the original algorithm only
+  // ever anchored travel-start to a door-dwell detected AT the earlier arrival's own timestamp --
+  // it had no way to represent "stopped, dwelled, doors closed, and THEN sat idle/unassigned for
+  // an arbitrary stretch before finally being recalled," so it treated the entire gap after
+  // doorsClosed as one continuous interpolated move, visibly creeping the elevator toward the
+  // next floor for the whole idle stretch, not just the real final floorTravelTimeMs of it.
+  //
+  // E1 arrives floor 10 at 32000 and stops (doorsOpened at the same timestamp), dwells until
+  // doorsClosed at 36500 (dwellMs = 4500), then sits idle -- no assignment, no door event -- until
+  // finally recalled and arriving floor 9 at 82500 (floorTravelTimeMs = 2000, so real travel only
+  // started at 80500). This mirrors the exact scenario traced live: FCFS recalling the last idle
+  // elevator only once every nearer one has taken its turn on a sustained backlog.
+  const log: SimEventLogEntry[] = [
+    { type: 'elevatorArrived', time: 32000, elevatorId: 'E1', floor: 10 },
+    { type: 'doorsOpened', time: 32000, elevatorId: 'E1', floor: 10 },
+    { type: 'passengerAlighted', time: 32000, elevatorId: 'E1', floor: 10, passengerId: 'p1' },
+    { type: 'doorsClosed', time: 36500, elevatorId: 'E1', floor: 10 },
+    { type: 'elevatorArrived', time: 82500, elevatorId: 'E1', floor: 9 },
+  ];
+  const grouped = groupReplayLog(log, ['E1'], 2000);
+
+  it('holds position fixed at floor 10 through the dwell AND the entire idle stretch after it', () => {
+    expect(computeReplayFrame(grouped, 36500).elevators[0].position).toBe(10); // doors just closed
+    // The key regression point: naively interpolating the full [36500, 82500] span would compute
+    // fraction = (50000 - 36500) / (82500 - 36500) ≈ 0.293 -> position ≈ 9.7 here, visibly
+    // creeping away from floor 10 tens of seconds before the elevator is actually dispatched.
+    // The corrected algorithm must return exactly 10 -- a genuine regression test.
+    expect(computeReplayFrame(grouped, 50000).elevators[0].position).toBe(10);
+    expect(computeReplayFrame(grouped, 80499).elevators[0].position).toBe(10);
+  });
+
+  it('starts interpolating only in the real final floorTravelTimeMs window before the next arrival', () => {
+    expect(computeReplayFrame(grouped, 80500).elevators[0].position).toBe(10); // fraction 0
+    expect(computeReplayFrame(grouped, 81500).elevators[0].position).toBe(9.5); // fraction 0.5
+    expect(computeReplayFrame(grouped, 82500).elevators[0].position).toBe(9); // arrived
+  });
+});
+
 describe('computeReplayFrame: door state', () => {
   const log: SimEventLogEntry[] = [
     { type: 'elevatorArrived', time: 2000, elevatorId: 'E1', floor: 2 },
@@ -105,7 +145,7 @@ describe('computeReplayFrame: door state', () => {
     { type: 'doorsClosed', time: 5000, elevatorId: 'E1', floor: 2 },
     { type: 'doorsOpened', time: 7000, elevatorId: 'E1', floor: 2 },
   ];
-  const grouped = groupReplayLog(log, ['E1']);
+  const grouped = groupReplayLog(log, ['E1'], 1000);
 
   it('is closed before any doorsOpened event', () => {
     expect(computeReplayFrame(grouped, 0).elevators[0].doorsOpen).toBe(false);
@@ -137,7 +177,7 @@ describe('computeReplayFrame: onboard count (boarding then alighting)', () => {
     { type: 'elevatorArrived', time: 2000, elevatorId: 'E1', floor: 2 },
     { type: 'passengerAlighted', time: 2000, elevatorId: 'E1', floor: 2, passengerId: 'p1' },
   ];
-  const grouped = groupReplayLog(log, ['E1']);
+  const grouped = groupReplayLog(log, ['E1'], 1000);
 
   it('starts at 0 before anyone boards', () => {
     expect(computeReplayFrame(grouped, 500).elevators[0].onboardCount).toBe(0);
@@ -160,7 +200,7 @@ describe('computeReplayFrame: active hall calls', () => {
     { type: 'hallCallRegistered', time: 1500, floor: 4, direction: 'down' },
     { type: 'hallCallCleared', time: 3000, floor: 3, direction: 'up' },
   ];
-  const grouped = groupReplayLog(log, ['E1']);
+  const grouped = groupReplayLog(log, ['E1'], 1000);
 
   it('is empty before any call registers', () => {
     expect(computeReplayFrame(grouped, 500).activeHallCalls).toEqual([]);
