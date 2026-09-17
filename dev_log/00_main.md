@@ -42,12 +42,14 @@ Unit 01 (scaffolding) complete. Design/requirements phase complete (captured via
 ### Completed Features
 
 - Working Vite + TS project shell: dev server, static build (base `/L-vator/`), ESLint + Prettier, Vitest, GitHub Actions Pages deploy pipeline (untested end-to-end — not yet pushed to a remote).
+- Headless discrete-event simulation engine (`src/engine/`): event queue, elevator state machine, floor-to-floor movement, capacity/overflow, presence-only hall calls, door-dwell timing, event log, and the `DispatchHook` seam for algorithms to plug into.
 
 ## Units Implemented
 
 ### Completed Units
 
 * **[01](01_scaffolding.md)**: Scaffolding - Vite + TS project setup, ESLint/Prettier, Vitest, GitHub Actions Pages deploy pipeline. See [01_scaffolding_done.md](01_scaffolding_done.md) for completion details.
+* **[02](02_engine.md)**: Engine - discrete-event simulation core (event queue, elevator state machine, movement, capacity/overflow, presence-only hall calls, door-dwell formula, event log, dispatch-hook seam). See [02_engine_done.md](02_engine_done.md) for completion details.
 
 ### Units In Progress
 
@@ -55,7 +57,6 @@ None yet.
 
 ## Planned Units
 
-* **02**: Simulation engine core — discrete-event loop, event queue, floor-to-floor atomic movement, elevator/passenger state model, capacity and presence-only hall-call semantics, door-dwell formula.
 * **03**: Dispatch algorithms — FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching; common algorithm interface; one file per algorithm.
 * **04**: Call generation — random arrival process (rate, origin/destination pattern, per-floor rate variation) and scripted scenario loading; seeded/reproducible multi-run trial generation shared across algorithms.
 * **05**: Metrics — average wait time, average travel time, max wait time, total distance traveled, throughput, average occupancy while moving, empty/deadhead-travel percentage; aggregation across N trial runs.
