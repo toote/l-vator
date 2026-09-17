@@ -32,8 +32,8 @@ export function defaultConfig(): ConfigDraft {
       floorCount: 5,
       elevatorCount: 2,
       capacity: 8,
-      floorTravelTimeMs: 2000,
-      doorDwellBaseMs: 3000,
+      floorTravelTimeMs: 5000,
+      doorDwellBaseMs: 1000,
       doorDwellPerPassengerMultiplier: 0.5,
     },
     arrivals: {
