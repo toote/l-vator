@@ -194,6 +194,55 @@ describe('computeReplayFrame: onboard count (boarding then alighting)', () => {
   });
 });
 
+describe('computeReplayFrame: onboard count ramps across a dwell instead of jumping instantly', () => {
+  // Developer-reported: 8 passengers boarding at once made the displayed count jump straight to
+  // 8, even though the doors stayed open for the rest of an 800ms dwell. The simulation logs
+  // every passenger's boarding at the SAME timestamp (door.ts's dwell formula only scales total
+  // dwell duration by headcount, never stages individual boarding moments) -- so the ramp is a
+  // display-only fix, not a change to the underlying event data.
+  //
+  // Stop 1 at floor 2: 8 passengers board at once (doorsOpened 2000, doorsClosed 2800 -- an
+  // 800ms dwell). Stop 2 at floor 5: 3 of those 8 alight (doorsOpened 3800, doorsClosed 4200 --
+  // a 400ms dwell), proving the ramp also works for a net DECREASE and that "before" is whatever
+  // the count actually was, not hardcoded to 0.
+  const boardIds = Array.from({ length: 8 }, (_, i) => `p${i + 1}`);
+  const log: SimEventLogEntry[] = [
+    { type: 'elevatorArrived', time: 2000, elevatorId: 'E1', floor: 2 },
+    { type: 'doorsOpened', time: 2000, elevatorId: 'E1', floor: 2 },
+    ...boardIds.map((passengerId): SimEventLogEntry => ({
+      type: 'passengerBoarded',
+      time: 2000,
+      elevatorId: 'E1',
+      floor: 2,
+      passengerId,
+    })),
+    { type: 'doorsClosed', time: 2800, elevatorId: 'E1', floor: 2 },
+    { type: 'elevatorArrived', time: 3800, elevatorId: 'E1', floor: 5 },
+    { type: 'doorsOpened', time: 3800, elevatorId: 'E1', floor: 5 },
+    { type: 'passengerAlighted', time: 3800, elevatorId: 'E1', floor: 5, passengerId: 'p1' },
+    { type: 'passengerAlighted', time: 3800, elevatorId: 'E1', floor: 5, passengerId: 'p2' },
+    { type: 'passengerAlighted', time: 3800, elevatorId: 'E1', floor: 5, passengerId: 'p3' },
+    { type: 'doorsClosed', time: 4200, elevatorId: 'E1', floor: 5 },
+  ];
+  const grouped = groupReplayLog(log, ['E1'], 1000);
+
+  it('ramps up from 0 to 8 across the boarding dwell, reaching 8 only at doorsClosed', () => {
+    expect(computeReplayFrame(grouped, 2000).elevators[0].onboardCount).toBe(0); // doors just opened
+    expect(computeReplayFrame(grouped, 2200).elevators[0].onboardCount).toBe(2); // 25% through
+    expect(computeReplayFrame(grouped, 2400).elevators[0].onboardCount).toBe(4); // 50% through
+    expect(computeReplayFrame(grouped, 2600).elevators[0].onboardCount).toBe(6); // 75% through
+    expect(computeReplayFrame(grouped, 2800).elevators[0].onboardCount).toBe(8); // doors closed
+    expect(computeReplayFrame(grouped, 3000).elevators[0].onboardCount).toBe(8); // stays after
+  });
+
+  it('ramps down from 8 to 5 across the alighting dwell, starting from the real prior count (not 0)', () => {
+    expect(computeReplayFrame(grouped, 3800).elevators[0].onboardCount).toBe(8); // doors just opened
+    expect(computeReplayFrame(grouped, 3900).elevators[0].onboardCount).toBe(7); // 25% through
+    expect(computeReplayFrame(grouped, 4100).elevators[0].onboardCount).toBe(6); // 75% through
+    expect(computeReplayFrame(grouped, 4200).elevators[0].onboardCount).toBe(5); // doors closed
+  });
+});
+
 describe('computeReplayFrame: active hall calls', () => {
   const log: SimEventLogEntry[] = [
     { type: 'hallCallRegistered', time: 1000, floor: 3, direction: 'up' },

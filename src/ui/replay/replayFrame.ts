@@ -164,6 +164,23 @@ export function countAtOrBefore<T extends Timed>(items: readonly T[], t: number)
   return lo;
 }
 
+/** Same as countAtOrBefore, but strictly before `t` -- excludes an entry whose time equals `t`.
+ * Used by onboardCountAtTime to find the count just BEFORE a stop's own boarding/alighting,
+ * which all share the stop's start timestamp (see that function's doc comment). */
+function countStrictlyBefore<T extends Timed>(items: readonly T[], t: number): number {
+  let lo = 0;
+  let hi = items.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (items[mid].time < t) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
+}
+
 /**
  * Corrected interpolation algorithm -- see dev_log/07_results.md's "Correction" note, and
  * dev_log/07_results_done.md's "Idle-then-recalled" amendment for a second correction on top of
@@ -206,8 +223,37 @@ function doorsOpenAtTime(group: ElevatorLogGroups, time: number): boolean {
   return openTime > closeTime;
 }
 
+/**
+ * Developer-reported: watching 8 passengers board at once, the onboard count jumped to 8
+ * instantly even though the doors stayed open for a further several seconds of dwell. That's an
+ * accurate reflection of the simulation data as logged -- every passenger who boards (or
+ * alights) at a stop shares the exact same `passengerBoarded`/`passengerAlighted` timestamp (the
+ * stop's start; see door.ts's aggregate-cost dwell formula, which scales total dwell time by
+ * headcount but never stages individual boarding moments) -- but it looks wrong on screen. Fixed
+ * here, in the display only: while a stop's doors are open, the displayed count ramps linearly
+ * from the count just before this stop's boarding/alighting to the final post-stop count, reaching
+ * the true value exactly at doorsClosed. This changes nothing about the underlying event log or
+ * any metric derived from it (still computed from the exact, unramped counts) -- purely cosmetic.
+ */
 function onboardCountAtTime(group: ElevatorLogGroups, time: number): number {
-  return countAtOrBefore(group.boarded, time) - countAtOrBefore(group.alighted, time);
+  const { boarded, alighted, doorsOpened, doorsClosed } = group;
+  const after = countAtOrBefore(boarded, time) - countAtOrBefore(alighted, time);
+
+  const openIndex = countAtOrBefore(doorsOpened, time) - 1;
+  if (openIndex < 0) return after; // never stopped yet -- nothing to ramp from
+  const open = doorsOpened[openIndex];
+
+  const closeIndex = countAtOrBefore(doorsClosed, open.time); // first doorsClosed after this open
+  const close = closeIndex < doorsClosed.length ? doorsClosed[closeIndex] : undefined;
+  if (!close || time >= close.time) return after; // not currently mid-dwell
+
+  const before = countStrictlyBefore(boarded, open.time) - countStrictlyBefore(alighted, open.time);
+  if (before === after) return after; // no net change at this stop -- nothing to ramp
+
+  const span = close.time - open.time;
+  if (span <= 0) return after; // degenerate timing guard -- not expected in practice
+  const fraction = (time - open.time) / span;
+  return Math.round(before + fraction * (after - before));
 }
 
 function hallCallActiveAtTime(group: HallCallLogGroup, time: number): boolean {
