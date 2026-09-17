@@ -32,4 +32,12 @@ The `.active`/`.overloaded` CSS collision is this project's second instance (aft
 
 While reviewing this unit's replay changes alongside a live FCFS dispatch-concurrency investigation, the developer reported watching an idle elevator "slowly moving down" in the replay well before it was actually dispatched. This turned out to be a real bug in `replayFrame.ts`'s `positionAtTime` (Unit 07's original interpolation logic, not new to this unit) — full root cause and fix documented as its own amendment in `dev_log/07_results_done.md`. Fixed and committed separately, since it's a Unit 07 file this unit's own scope didn't touch.
 
+## Amendment (post-implementation, at developer request): count badges reserved layout space
+
+Developer-reported: passenger-count badges should always show a number, or otherwise reserve space, so the floor row doesn't shift when a count appears/disappears or changes digit count. This directly reverses this unit's original "bare glyph at count 0" decision (above) — the redundancy argument that motivated it didn't account for the layout-stability cost of text appearing/disappearing and changing width.
+
+Fixed in `replayCrossSection.ts`: each hall indicator's count is now its own child `<span class="replay-hall-count">`, always rendered (including `0`), with `min-width: 1.5ch`, `text-align: left`, and `font-variant-numeric: tabular-nums` — reserving fixed, equal-digit-width space for up to 2 digits so 0→1, 1-digit→2-digit, and count-disappears transitions never reflow the row. `createHallIndicator` factored out to avoid duplicating the up/down indicator construction now that each needs two child elements instead of one text node. `labelFor` (string-concatenation approach) removed in favor of setting the count span's `textContent` directly in `update()`.
+
+No dedicated unit test — `replayCrossSection.ts` is a DOM-rendering file with no automated tests in this project (consistent with `dashboardCharts.ts`'s precedent from Unit 08), verified by browser inspection instead. **Not yet verified in a live browser** (Chrome extension unavailable both times this session) — `npm run lint`/`test`/`build` all pass, but the actual layout stability and `1.5ch` sizing should get a real visual check before considering this fully closed.
+
 ## Status: Complete

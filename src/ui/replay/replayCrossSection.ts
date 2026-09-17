@@ -22,14 +22,8 @@ function hallCallKey(floor: FloorIndex, direction: Direction): string {
   return `${floor}:${direction}`;
 }
 
-/** Extends the existing bare ▲/▼ glyph with a count badge when one or more passengers are
- * waiting. Bare glyph (no "0" badge) at count 0 -- see dev_log/09_waiting_counts.md, "Visual
- * representation": the existing dimmed/inactive opacity styling already communicates "nothing
- * here"; a literal "▲ 0" next to an already-dimmed glyph would be redundant clutter, not new
- * information. */
-function labelFor(direction: Direction, count: number): string {
-  const glyph = direction === 'up' ? '▲' : '▼';
-  return count > 0 ? `${glyph} ${count}` : glyph;
+function glyphFor(direction: Direction): string {
+  return direction === 'up' ? '▲' : '▼';
 }
 
 export function renderCrossSection(
@@ -80,6 +74,17 @@ export function renderCrossSection(
     .replay-hall-indicator.overloaded {
       font-weight: bold;
     }
+    /* Always-visible, fixed-width count -- reserves space for up to 2 digits with tabular
+       (equal-width) figures, so a count appearing, disappearing, or changing digit count (e.g.
+       3 -> 12) never reflows the floor row or the indicator next to it. A count past 2 digits
+       simply grows past this reserved width -- rare in practice, and still layout-stable for
+       every ordinary case. */
+    .replay-hall-count {
+      display: inline-block;
+      min-width: 1.5ch;
+      text-align: left;
+      font-variant-numeric: tabular-nums;
+    }
   `;
   root.appendChild(style);
 
@@ -93,10 +98,25 @@ export function renderCrossSection(
 
   interface HallIndicator {
     element: HTMLElement;
+    count: HTMLElement;
     floor: FloorIndex;
     direction: Direction;
   }
   const hallIndicators = new Map<string, HallIndicator>();
+
+  function createHallIndicator(floor: FloorIndex, direction: Direction): HallIndicator {
+    const element = document.createElement('span');
+    element.className = 'replay-hall-indicator';
+    element.title = `Floor ${floor}, ${direction}`;
+    element.appendChild(document.createTextNode(glyphFor(direction)));
+
+    const count = document.createElement('span');
+    count.className = 'replay-hall-count';
+    count.textContent = '0';
+    element.appendChild(count);
+
+    return { element, count, floor, direction };
+  }
 
   for (const floor of floors) {
     const row = document.createElement('div');
@@ -111,19 +131,13 @@ export function renderCrossSection(
     label.style.width = '4.75rem';
     row.appendChild(label);
 
-    const up = document.createElement('span');
-    up.textContent = '▲';
-    up.className = 'replay-hall-indicator';
-    up.title = `Floor ${floor}, up`;
-    row.appendChild(up);
-    hallIndicators.set(hallCallKey(floor, 'up'), { element: up, floor, direction: 'up' });
+    const up = createHallIndicator(floor, 'up');
+    row.appendChild(up.element);
+    hallIndicators.set(hallCallKey(floor, 'up'), up);
 
-    const down = document.createElement('span');
-    down.textContent = '▼';
-    down.className = 'replay-hall-indicator';
-    down.title = `Floor ${floor}, down`;
-    row.appendChild(down);
-    hallIndicators.set(hallCallKey(floor, 'down'), { element: down, floor, direction: 'down' });
+    const down = createHallIndicator(floor, 'down');
+    row.appendChild(down.element);
+    hallIndicators.set(hallCallKey(floor, 'down'), down);
 
     labelsColumn.appendChild(row);
   }
@@ -187,7 +201,7 @@ export function renderCrossSection(
     for (const [key, indicator] of hallIndicators) {
       indicator.element.classList.toggle('active', activeKeys.has(key));
       const count = countByKey.get(key) ?? 0;
-      indicator.element.textContent = labelFor(indicator.direction, count);
+      indicator.count.textContent = String(count);
       const overloaded = count > building.capacity;
       indicator.element.classList.toggle('overloaded', overloaded);
       const waitingSuffix = count > 0 ? ` — ${count} waiting` : '';
