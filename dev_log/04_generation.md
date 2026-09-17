@@ -382,4 +382,4 @@ Modified:
 
 Not modified, per this unit's explicit scope boundary, despite a real bug being found in them (see "AI Interactions" above): `src/engine/*`, `src/algorithms/*`.
 
-## Status: Implemented — awaiting developer validation
+## Status: Complete
