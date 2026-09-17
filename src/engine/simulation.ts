@@ -42,7 +42,16 @@ function hasWaitingCallAt(
   return waitingPassengers.some((p) => p.originFloor === floor && p.direction === direction);
 }
 
-/** Derives presence-only active hall calls from the engine's internal ground truth. */
+/**
+ * Derives presence-only active hall calls from the engine's internal ground truth.
+ *
+ * Ordering guarantee (see DispatchSnapshot.activeHallCalls in dispatch.ts): this relies on
+ * `waitingPassengers` always being in arrival order (new arrivals pushed to the end,
+ * `.filter()` used everywhere passengers are removed — never re-sorted or spliced), so the
+ * first still-waiting occurrence of each (floor, direction) key naturally reflects when that
+ * call first became active among calls active *right now*, and dropping a served call's
+ * passengers via `.filter()` leaves the relative order of every other call untouched.
+ */
 function getActiveHallCalls(waitingPassengers: readonly Passenger[]): HallCall[] {
   const seen = new Set<string>();
   const calls: HallCall[] = [];

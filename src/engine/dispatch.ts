@@ -20,6 +20,12 @@ export interface DispatchSnapshot {
   /**
    * Floor + direction ONLY — no counts, enforced by this shape. Never carries `Passenger`
    * objects or destination data; that's the whole point of the two-stage call model.
+   *
+   * Ordering is a guaranteed contract, not incidental: entries appear in the order each
+   * distinct (floor, direction) call first became active among calls that are *currently*
+   * active, and a call being served/cleared never reorders the calls that remain — clearing
+   * one call is independent of the others' relative order. An algorithm may rely on this
+   * (e.g. to approximate first-come-first-served) without re-deriving it from timestamps.
    */
   activeHallCalls: ReadonlyArray<HallCall>;
 }

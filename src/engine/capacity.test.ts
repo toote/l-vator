@@ -119,6 +119,49 @@ describe('presence-only hall calls', () => {
     expect(matchingCalls).toHaveLength(1);
   });
 
+  it('keeps activeHallCalls in arrival order, independent of other calls being cleared', () => {
+    const config = buildBasicConfig({ floorCount: 5, capacity: 5, floorTravelTimeMs: 100 });
+    const hook = vi.fn(createGreedyStopAndGoHook());
+
+    // Call A (floor 2, up) registers first, call B (floor 4, up) second - both active together.
+    // The elevator serves A first (it's on the way), clearing it independently of B. Later, call
+    // C (floor 3, up) registers after A has already cleared. At every point, remaining calls must
+    // stay in the order they first became active, regardless of what already cleared.
+    const script = [
+      passengerArrival('a', 2, 'up', 0, 0),
+      passengerArrival('b', 4, 'up', 0, 0),
+      passengerArrival('c', 3, 'up', 0, 250),
+    ];
+
+    runSimulation(config, script, hook, SAFETY_CUTOFF);
+
+    const snapshotsWithBothAAndB = (hook.mock.calls as [DispatchSnapshot][])
+      .map(([snapshot]) => snapshot)
+      .filter((snapshot) => {
+        const floors = snapshot.activeHallCalls.map((c) => c.floor);
+        return floors.includes(2) && floors.includes(4);
+      });
+    expect(snapshotsWithBothAAndB.length).toBeGreaterThan(0);
+    for (const snapshot of snapshotsWithBothAAndB) {
+      const floors = snapshot.activeHallCalls.map((c) => c.floor);
+      expect(floors.indexOf(2)).toBeLessThan(floors.indexOf(4)); // A before B
+    }
+
+    const snapshotsWithBothBAndC = (hook.mock.calls as [DispatchSnapshot][])
+      .map(([snapshot]) => snapshot)
+      .filter((snapshot) => {
+        const floors = snapshot.activeHallCalls.map((c) => c.floor);
+        return floors.includes(4) && floors.includes(3);
+      });
+    expect(snapshotsWithBothBAndC.length).toBeGreaterThan(0);
+    for (const snapshot of snapshotsWithBothBAndC) {
+      // A (floor 2) has cleared by now, but B (registered before C) must still precede C.
+      const floors = snapshot.activeHallCalls.map((c) => c.floor);
+      expect(floors.includes(2)).toBe(false);
+      expect(floors.indexOf(4)).toBeLessThan(floors.indexOf(3)); // B before C
+    }
+  });
+
   it('rejects a passenger-identifying field on HallCall at the type level (enforced by npm run build)', () => {
     // @ts-expect-error - HallCall (and DispatchSnapshot.activeHallCalls entries) is presence-only:
     // floor + direction, nothing else. This is a compile-time guarantee, checked by `tsc -b` as
