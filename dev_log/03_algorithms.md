@@ -298,4 +298,4 @@ Not part of this unit, modified separately as amendments to Unit 02 and committe
 - `src/engine/dispatch.ts`, `src/engine/simulation.ts` — `activeHallCalls` ordering guarantee, boarding-direction fix
 - `src/engine/capacity.test.ts` — regression tests for both
 
-## Status: Implemented — awaiting developer validation
+## Status: Complete

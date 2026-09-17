@@ -43,6 +43,7 @@ Unit 01 (scaffolding) complete. Design/requirements phase complete (captured via
 
 - Working Vite + TS project shell: dev server, static build (base `/L-vator/`), ESLint + Prettier, Vitest, GitHub Actions Pages deploy pipeline (untested end-to-end — not yet pushed to a remote).
 - Headless discrete-event simulation engine (`src/engine/`): event queue, elevator state machine, floor-to-floor movement, capacity/overflow, presence-only hall calls, door-dwell timing, event log, and the `DispatchHook` seam for algorithms to plug into.
+- Three dispatch algorithms (`src/algorithms/`): FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching — auto-discovered via `import.meta.glob`, ready for Units 04/05/06 to run and compare.
 
 ## Units Implemented
 
@@ -50,6 +51,7 @@ Unit 01 (scaffolding) complete. Design/requirements phase complete (captured via
 
 * **[01](01_scaffolding.md)**: Scaffolding - Vite + TS project setup, ESLint/Prettier, Vitest, GitHub Actions Pages deploy pipeline. See [01_scaffolding_done.md](01_scaffolding_done.md) for completion details.
 * **[02](02_engine.md)**: Engine - discrete-event simulation core (event queue, elevator state machine, movement, capacity/overflow, presence-only hall calls, door-dwell formula, event log, dispatch-hook seam). See [02_engine_done.md](02_engine_done.md) for completion details.
+* **[03](03_algorithms.md)**: Algorithms - FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching; auto-discovered via `import.meta.glob`. See [03_algorithms_done.md](03_algorithms_done.md) for completion details.
 
 ### Units In Progress
 
@@ -57,7 +59,6 @@ None yet.
 
 ## Planned Units
 
-* **03**: Dispatch algorithms — FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching; common algorithm interface; one file per algorithm.
 * **04**: Call generation — random arrival process (rate, origin/destination pattern, per-floor rate variation) and scripted scenario loading; seeded/reproducible multi-run trial generation shared across algorithms.
 * **05**: Metrics — average wait time, average travel time, max wait time, total distance traveled, throughput, average occupancy while moving, empty/deadhead-travel percentage; aggregation across N trial runs.
 * **06**: UI — building/fleet/timing config panel (floors, elevators, capacity, floor-travel time, door-dwell base + multiplier, arrival rate, origin/destination pattern, per-floor rate, trial count), run controls, algorithm selection for comparison.
