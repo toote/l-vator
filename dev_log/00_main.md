@@ -37,7 +37,7 @@ The initial interaction mode is **configured batch simulation** (set parameters,
 
 ### Overall Completion
 
-**All seven originally planned units are complete.** The baseline scope described in "What This Is" above is fully implemented: configure a building/fleet/scenario, run N seeded trials against one or more dispatch algorithms, and see results as both an animated replay and a comparison dashboard. No units remain planned; only the three explicitly-deferred Future Enhancements below are out of scope.
+**All seven originally planned units, plus Unit 08 (dashboard charts, picked up from Unit 07's deferred scope), are complete.** The baseline scope described in "What This Is" above is fully implemented: configure a building/fleet/scenario, run N seeded trials against one or more dispatch algorithms, and see results as both an animated replay and a comparison dashboard with charts. No units remain planned; only the Future Enhancements below are out of scope.
 
 ### Completed Features
 
@@ -46,7 +46,7 @@ The initial interaction mode is **configured batch simulation** (set parameters,
 - Three dispatch algorithms (`src/algorithms/`): FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching — auto-discovered via `import.meta.glob`, including overflow-handoff logic so a second elevator can help when one can't keep up with demand alone.
 - Call generation (`src/generation/`, `src/scenarios/`): seeded random arrivals (up-peak/down-peak/random patterns), scripted scenarios, and the fairness-guaranteed trial batch/runner every algorithm comparison runs through.
 - Metrics (`src/metrics/`): eight headline metrics per algorithm (wait/travel time, max wait, distance, throughput, occupancy, deadhead %, unserved count/%), pooled correctly across N seeded trials.
-- UI (`src/ui/`): config panel (building/fleet/timing/arrival, random or scripted scenarios), algorithm selection, run controls, an animated single-panel replay of any selected trial, and a sortable, best-algorithm-highlighted comparison dashboard.
+- UI (`src/ui/`): config panel (building/fleet/timing/arrival, random or scripted scenarios), algorithm selection, run controls, an animated single-panel replay of any selected trial, and a comparison dashboard with a sortable/highlighted table plus four bar charts (average wait, max wait, throughput, unserved%) sharing a stable per-algorithm color identity.
 
 ## Units Implemented
 
@@ -59,6 +59,7 @@ The initial interaction mode is **configured batch simulation** (set parameters,
 * **[05](05_metrics.md)**: Metrics - eight headline metrics per algorithm, pooled correctly across N seeded trials. See [05_metrics_done.md](05_metrics_done.md) for completion details.
 * **[06](06_ui.md)**: UI - config panel, algorithm selection, run controls, plain results table. See [06_ui_done.md](06_ui_done.md) for completion details.
 * **[07](07_results.md)**: Results presentation - animated single-panel replay with corrected event-log interpolation, sortable/highlighted comparison dashboard. See [07_results_done.md](07_results_done.md) for completion details.
+* **[08](08_charts.md)**: Dashboard charts - four small-multiple bar charts with stable per-algorithm color identity, per the `dataviz` skill. See [08_charts_done.md](08_charts_done.md) for completion details.
 
 ### Units In Progress
 
@@ -66,10 +67,12 @@ None.
 
 ## Planned Units
 
-None — all originally planned units (01-07) are complete.
+None.
 
 ### Future Enhancements (explicitly out of baseline scope)
 
 * Manual/interactive mode — click hall-call buttons and watch a single algorithm respond in real time.
 * Destination-dispatch-style algorithms (requires a different call model — bank of buttons per floor — deferred because it changes the call model assumed above).
 * UI-authorable scripted scenarios (currently plain data files, not editable via UI).
+* Side-by-side multi-algorithm replay of the same trial (deferred from Unit 07 — correctness-free per the fairness guarantee, but not built).
+* A stable, hand-maintained algorithm→color-slot mapping (Unit 08's color identity currently derives from `import.meta.glob`'s file order, which can shift an existing algorithm's color if a new algorithm file sorts earlier alphabetically — see `08_charts.md`/`algorithmColor.ts` for the full note; only matters once a 4th algorithm is added).

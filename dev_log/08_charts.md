@@ -410,4 +410,4 @@ a new `showSwatch` flag; `algorithmName` exported instead of private; best-per-m
 logic untouched), `src/ui/dashboard/dashboardView.ts` (renders `renderDashboardCharts` above
 `renderDashboardTable`), `dev_log/08_charts.md` (this file).
 
-## Status: Implemented — awaiting developer validation
+## Status: Complete
