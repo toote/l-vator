@@ -4,12 +4,15 @@
 
 import { algorithms } from '../../algorithms';
 import type { AlgorithmMetrics } from '../../metrics';
+import { algorithmColorVar } from './algorithmColor';
 
 function formatNumber(value: number | null): string {
   return value === null ? 'n/a' : value.toFixed(1);
 }
 
-function algorithmName(algorithmId: string): string {
+/** Exported so dashboardCharts.ts (Unit 08) reuses the same algorithm-name lookup instead of
+ * duplicating it. */
+export function algorithmName(algorithmId: string): string {
   return algorithms.find((algorithm) => algorithm.id === algorithmId)?.name ?? algorithmId;
 }
 
@@ -79,10 +82,20 @@ interface ColumnDef {
   /** Null for non-metric columns (Algorithm name, Trials) -- not sortable, never highlighted. */
   metricKey: MetricKey | null;
   format: (m: AlgorithmMetrics) => string;
+  /** Renders a small algorithmColorVar-driven swatch before the formatted text -- only the
+   * Algorithm column needs the cross-view color identity added in Unit 08 (see
+   * dev_log/08_charts.md, "Table integration"). Does not touch the existing best-per-metric
+   * highlight logic below, which is a separate, status-encoding concern. */
+  showSwatch?: boolean;
 }
 
 const COLUMNS: ColumnDef[] = [
-  { label: 'Algorithm', metricKey: null, format: (m) => algorithmName(m.algorithmId) },
+  {
+    label: 'Algorithm',
+    metricKey: null,
+    format: (m) => algorithmName(m.algorithmId),
+    showSwatch: true,
+  },
   { label: 'Trials', metricKey: null, format: (m) => String(m.trialCount) },
   {
     label: 'Avg wait (ms)',
@@ -192,7 +205,22 @@ export function renderDashboardTable(
     const tr = document.createElement('tr');
     for (const column of COLUMNS) {
       const td = document.createElement('td');
-      td.textContent = column.format(row);
+      if (column.showSwatch) {
+        const swatch = document.createElement('span');
+        swatch.style.display = 'inline-block';
+        swatch.style.width = '10px';
+        swatch.style.height = '10px';
+        swatch.style.borderRadius = '50%';
+        swatch.style.marginRight = '0.4rem';
+        swatch.style.verticalAlign = 'middle';
+        // Same algorithmColorVar helper as the charts (Unit 08) -- same blue dot beside "FCFS"
+        // here and on every chart bar, without overloading the highlight below's status meaning.
+        swatch.style.background = algorithmColorVar(row.algorithmId);
+        td.appendChild(swatch);
+        td.appendChild(document.createTextNode(column.format(row)));
+      } else {
+        td.textContent = column.format(row);
+      }
       if (column.metricKey && bestByColumn.get(column.metricKey) === row.algorithmId) {
         td.style.fontWeight = 'bold';
         // Derived purely from --text/--bg (no hardcoded color) so the highlight stays correct

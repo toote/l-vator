@@ -1,7 +1,9 @@
-// Dashboard orchestrator: renders the (sortable, best-algorithm-highlighted) comparison table.
-// See dev_log/07_results.md, "File layout". No charts in this unit.
+// Dashboard orchestrator: renders the four chart panels above the (sortable,
+// best-algorithm-highlighted) comparison table -- same data at different grain, shown in
+// sequence, not tabs/toggle. See dev_log/08_charts.md, "Layout: charts above the table".
 
 import type { AlgorithmMetrics } from '../../metrics';
+import { renderDashboardCharts } from './dashboardCharts';
 import { renderDashboardTable } from './dashboardTable';
 
 export function renderDashboardView(metrics: AlgorithmMetrics[], render: () => void): HTMLElement {
@@ -11,6 +13,7 @@ export function renderDashboardView(metrics: AlgorithmMetrics[], render: () => v
   heading.textContent = 'Dashboard';
   section.appendChild(heading);
 
+  section.appendChild(renderDashboardCharts(metrics));
   section.appendChild(renderDashboardTable(metrics, render));
   return section;
 }

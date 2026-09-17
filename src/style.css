@@ -1,6 +1,13 @@
 :root {
   --text: #1f2028;
   --bg: #ffffff;
+  /* Chart series colors (Unit 08 dashboard charts) -- fixed per-algorithm identity, assigned by
+     registry index via src/ui/dashboard/algorithmColor.ts, never by an AlgorithmMetrics[] run's
+     row order. Validated (dataviz skill's validate_palette.js) against this project's actual
+     --bg, --pairs all -- see dev_log/08_charts.md / 08_charts_test.md for the recorded output. */
+  --series-1: #2a78d6; /* blue */
+  --series-2: #eb6834; /* orange */
+  --series-3: #1baf7a; /* aqua */
   font:
     18px/1.45 system-ui,
     'Segoe UI',
@@ -15,6 +22,9 @@
   :root {
     --text: #f3f4f6;
     --bg: #16171d;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
   }
 }
 
