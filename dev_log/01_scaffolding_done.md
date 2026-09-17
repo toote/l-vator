@@ -37,3 +37,7 @@ The GitHub Actions Pages deploy workflow was written and reviewed but never exec
 ## Amendment (during Unit 02 planning)
 
 While drafting the Unit 02 (engine) plan, it surfaced that `tsconfig.json` did not actually have `"strict": true` set, despite this file's own "Key Decisions" implying strict mode was verified during Unit 01. Corrected by adding `"strict": true` to `compilerOptions`, ahead of Unit 02 introducing the project's first real typed state model. Re-verified `npm run build`, `npm run lint`, `npm run test`, and `npm run format:check` all still pass with strict mode on — no code needed changes since there was no application logic yet. Committed separately from this unit's original commit.
+
+## Amendment (after Unit 08, at developer request)
+
+`.nvmrc` bumped from `22` to `26` at the developer's request, to track the latest Node version rather than the LTS that happened to be current when this unit was originally implemented (the local environment had already moved to Node v26.8.2 by this point — see Unit 01's own "Local verification ran against Node v26.8.2" note above, which was already ahead of `.nvmrc` at the time). Since `.github/workflows/deploy.yml`'s `actions/setup-node` step reads `node-version-file: '.nvmrc'`, this single-file change updates CI too — no other file needed changes. Re-verified `npm run lint`, `npm run format:check`, `npm run test` (177/177), and `npm run build` all pass unchanged.
