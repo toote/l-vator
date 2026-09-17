@@ -208,4 +208,4 @@ Created: `src/metrics/types.ts`, `passengerRecords.ts`, `distanceOccupancy.ts`, 
 
 No files under `src/engine/`, `src/algorithms/`, or `src/generation/` were touched, per this unit's stated scope.
 
-## Status: Implemented — awaiting developer validation
+## Status: Complete
