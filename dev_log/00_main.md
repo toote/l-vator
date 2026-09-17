@@ -37,7 +37,7 @@ The initial interaction mode is **configured batch simulation** (set parameters,
 
 ### Overall Completion
 
-**All seven originally planned units, plus Unit 08 (dashboard charts, picked up from Unit 07's deferred scope), are complete.** The baseline scope described in "What This Is" above is fully implemented: configure a building/fleet/scenario, run N seeded trials against one or more dispatch algorithms, and see results as both an animated replay and a comparison dashboard with charts. No units remain planned; only the Future Enhancements below are out of scope.
+**All seven originally planned units, plus Unit 08 (dashboard charts) and Unit 09 (waiting-passenger counts), are complete.** The baseline scope described in "What This Is" above is fully implemented: configure a building/fleet/scenario, run N seeded trials against one or more dispatch algorithms, and see results as both an animated replay (now showing live per-floor, per-direction waiting counts) and a comparison dashboard with charts. No units remain planned; only the Future Enhancements below are out of scope.
 
 ### Completed Features
 
@@ -46,7 +46,7 @@ The initial interaction mode is **configured batch simulation** (set parameters,
 - Three dispatch algorithms (`src/algorithms/`): FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching — auto-discovered via `import.meta.glob`, including overflow-handoff logic so a second elevator can help when one can't keep up with demand alone.
 - Call generation (`src/generation/`, `src/scenarios/`): seeded random arrivals (up-peak/down-peak/random patterns), scripted scenarios, and the fairness-guaranteed trial batch/runner every algorithm comparison runs through.
 - Metrics (`src/metrics/`): eight headline metrics per algorithm (wait/travel time, max wait, distance, throughput, occupancy, deadhead %, unserved count/%), pooled correctly across N seeded trials.
-- UI (`src/ui/`): config panel (building/fleet/timing/arrival, random or scripted scenarios), algorithm selection, run controls, an animated single-panel replay of any selected trial, and a comparison dashboard with a sortable/highlighted table plus four bar charts (average wait, max wait, throughput, unserved%) sharing a stable per-algorithm color identity.
+- UI (`src/ui/`): config panel (building/fleet/timing/arrival, random or scripted scenarios), algorithm selection, run controls, an animated single-panel replay of any selected trial (with live per-floor, per-direction waiting-passenger counts on each hall indicator), and a comparison dashboard with a sortable/highlighted table plus four bar charts (average wait, max wait, throughput, unserved%) sharing a stable per-algorithm color identity.
 
 ## Units Implemented
 
@@ -60,6 +60,7 @@ The initial interaction mode is **configured batch simulation** (set parameters,
 * **[06](06_ui.md)**: UI - config panel, algorithm selection, run controls, plain results table. See [06_ui_done.md](06_ui_done.md) for completion details.
 * **[07](07_results.md)**: Results presentation - animated single-panel replay with corrected event-log interpolation, sortable/highlighted comparison dashboard. See [07_results_done.md](07_results_done.md) for completion details.
 * **[08](08_charts.md)**: Dashboard charts - four small-multiple bar charts with stable per-algorithm color identity, per the `dataviz` skill. See [08_charts_done.md](08_charts_done.md) for completion details.
+* **[09](09_waiting_counts.md)**: Waiting-passenger counts - live per-floor, per-direction waiting-passenger counts on the replay's hall indicators. See [09_waiting_counts_done.md](09_waiting_counts_done.md) for completion details.
 
 ### Units In Progress
 

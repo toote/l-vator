@@ -6,6 +6,7 @@
 
 import type { BuildingConfig, Direction, FloorIndex } from '../../engine';
 import type { ReplayFrame } from './replayFrame';
+import type { WaitingCountFrame } from './waitingCounts';
 
 const ROW_HEIGHT_PX = 40;
 const SHAFT_WIDTH_PX = 64;
@@ -14,11 +15,21 @@ export interface CrossSectionHandle {
   root: HTMLElement;
   /** Imperatively patches only the car/door/badge/indicator elements already built -- never
    * rebuilds the tree. Called once per animation frame. */
-  update: (frame: ReplayFrame) => void;
+  update: (frame: ReplayFrame, waitingCounts: readonly WaitingCountFrame[]) => void;
 }
 
 function hallCallKey(floor: FloorIndex, direction: Direction): string {
   return `${floor}:${direction}`;
+}
+
+/** Extends the existing bare ▲/▼ glyph with a count badge when one or more passengers are
+ * waiting. Bare glyph (no "0" badge) at count 0 -- see dev_log/09_waiting_counts.md, "Visual
+ * representation": the existing dimmed/inactive opacity styling already communicates "nothing
+ * here"; a literal "▲ 0" next to an already-dimmed glyph would be redundant clutter, not new
+ * information. */
+function labelFor(direction: Direction, count: number): string {
+  const glyph = direction === 'up' ? '▲' : '▼';
+  return count > 0 ? `${glyph} ${count}` : glyph;
 }
 
 export function renderCrossSection(
@@ -57,6 +68,16 @@ export function renderCrossSection(
     }
     .replay-hall-indicator.active {
       opacity: 1;
+    }
+    /* .overloaded (count > building.capacity) is the ONLY thing that bolds a hall-call badge --
+       see dev_log/09_waiting_counts.md, "What happens at large counts". Unit 07's original
+       .active rule also set font-weight: bold here; that was removed by Unit 09 (confirmed via
+       real browser testing -- see dev_log/09_waiting_counts_test.md) because it made .overloaded
+       indistinguishable from merely-active: almost every non-zero waiting count is also an active
+       hall call, so the pre-existing "active = bold" rule silently masked the new "overloaded =
+       bold" signal the entire time a queue was building, not just once it actually exceeded
+       capacity. Active/inactive is still fully conveyed by the opacity toggle alone. */
+    .replay-hall-indicator.overloaded {
       font-weight: bold;
     }
   `;
@@ -70,7 +91,12 @@ export function renderCrossSection(
   labelsColumn.style.display = 'flex';
   labelsColumn.style.flexDirection = 'column';
 
-  const hallIndicators = new Map<string, HTMLElement>();
+  interface HallIndicator {
+    element: HTMLElement;
+    floor: FloorIndex;
+    direction: Direction;
+  }
+  const hallIndicators = new Map<string, HallIndicator>();
 
   for (const floor of floors) {
     const row = document.createElement('div');
@@ -90,14 +116,14 @@ export function renderCrossSection(
     up.className = 'replay-hall-indicator';
     up.title = `Floor ${floor}, up`;
     row.appendChild(up);
-    hallIndicators.set(hallCallKey(floor, 'up'), up);
+    hallIndicators.set(hallCallKey(floor, 'up'), { element: up, floor, direction: 'up' });
 
     const down = document.createElement('span');
     down.textContent = '▼';
     down.className = 'replay-hall-indicator';
     down.title = `Floor ${floor}, down`;
     row.appendChild(down);
-    hallIndicators.set(hallCallKey(floor, 'down'), down);
+    hallIndicators.set(hallCallKey(floor, 'down'), { element: down, floor, direction: 'down' });
 
     labelsColumn.appendChild(row);
   }
@@ -138,7 +164,7 @@ export function renderCrossSection(
   }
   root.appendChild(shaftsWrapper);
 
-  function update(frame: ReplayFrame): void {
+  function update(frame: ReplayFrame, waitingCounts: readonly WaitingCountFrame[]): void {
     for (const elevatorFrame of frame.elevators) {
       const car = cars.get(elevatorFrame.elevatorId);
       if (!car) continue;
@@ -152,8 +178,20 @@ export function renderCrossSection(
     const activeKeys = new Set(
       frame.activeHallCalls.map((call) => hallCallKey(call.floor, call.direction)),
     );
+    // Defaults absent (floor, direction) pairs to a count of 0 -- same convention
+    // GroupedWaitingCounts documents for a pair with zero arrivals in the whole trial. See
+    // dev_log/09_waiting_counts.md, "Visual representation" / "What happens at large counts".
+    const countByKey = new Map(
+      waitingCounts.map((entry) => [hallCallKey(entry.floor, entry.direction), entry.count]),
+    );
     for (const [key, indicator] of hallIndicators) {
-      indicator.classList.toggle('active', activeKeys.has(key));
+      indicator.element.classList.toggle('active', activeKeys.has(key));
+      const count = countByKey.get(key) ?? 0;
+      indicator.element.textContent = labelFor(indicator.direction, count);
+      const overloaded = count > building.capacity;
+      indicator.element.classList.toggle('overloaded', overloaded);
+      const waitingSuffix = count > 0 ? ` — ${count} waiting` : '';
+      indicator.element.title = `Floor ${indicator.floor}, ${indicator.direction}${waitingSuffix}`;
     }
   }
 

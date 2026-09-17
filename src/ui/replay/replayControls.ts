@@ -13,6 +13,7 @@
 import { algorithms } from '../../algorithms';
 import { advanceSimTime, clampSimTime, SPEED_OPTIONS } from './replayClock';
 import { computeReplayFrame, type GroupedLog } from './replayFrame';
+import { computeWaitingCounts, type GroupedWaitingCounts } from './waitingCounts';
 import type { CrossSectionHandle } from './replayCrossSection';
 import type { ReplaySelection } from '../types';
 
@@ -20,6 +21,7 @@ export interface ReplayControlsOptions {
   render: () => void;
   replay: ReplaySelection;
   groupedLog: GroupedLog;
+  groupedWaitingCounts: GroupedWaitingCounts;
   maxTimeMs: number;
   trialCount: number;
   algorithmIds: string[];
@@ -38,7 +40,16 @@ function formatClock(ms: number): string {
 }
 
 export function renderReplayControls(options: ReplayControlsOptions): HTMLElement {
-  const { render, replay, groupedLog, maxTimeMs, trialCount, algorithmIds, crossSection } = options;
+  const {
+    render,
+    replay,
+    groupedLog,
+    groupedWaitingCounts,
+    maxTimeMs,
+    trialCount,
+    algorithmIds,
+    crossSection,
+  } = options;
 
   const wrapper = document.createElement('div');
 
@@ -169,7 +180,10 @@ export function renderReplayControls(options: ReplayControlsOptions): HTMLElemen
     scrub.value = String(replay.simTimeMs);
     timeLabel.textContent = `${formatClock(replay.simTimeMs)} / ${formatClock(maxTimeMs)}`;
 
-    crossSection.update(computeReplayFrame(groupedLog, replay.simTimeMs));
+    crossSection.update(
+      computeReplayFrame(groupedLog, replay.simTimeMs),
+      computeWaitingCounts(groupedWaitingCounts, replay.simTimeMs),
+    );
 
     requestAnimationFrame(frameLoop);
   }

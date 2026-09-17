@@ -52,7 +52,13 @@ export function renderRunControls(state: AppState, render: () => void): HTMLElem
         // scenario.building (itself already a fresh copy of state.config.building for random
         // mode, but the stored ScriptedScenario's building for scripted mode) -- see
         // dev_log/07_results.md, "A gap this unit must close first".
-        state.run = { status: 'done', metrics, trialResults, building: { ...scenario.building } };
+        state.run = {
+          status: 'done',
+          metrics,
+          trialResults,
+          building: { ...scenario.building },
+          scenario,
+        };
         // (Re)initialize replay selection: first algorithm actually run, trial 0, paused at the
         // start, default speed. Re-running always replaces this wholesale, same as state.run.
         state.replay = {

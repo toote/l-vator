@@ -3,7 +3,7 @@
 // "Config panel fields and defaults".
 
 import type { BuildingConfig, FloorIndex } from '../engine';
-import type { ArrivalPattern, ScriptedScenario, TrialRunResult } from '../generation';
+import type { ArrivalPattern, Scenario, ScriptedScenario, TrialRunResult } from '../generation';
 import type { AlgorithmMetrics } from '../metrics';
 
 export type ScenarioMode = 'random' | 'scripted';
@@ -63,6 +63,12 @@ export type RunState =
       /** The exact BuildingConfig this run used, snapshotted -- NOT a live reference to
        * state.config.building, which the user can keep editing after a run completes. */
       building: BuildingConfig;
+      /** The exact Scenario this run used -- needed to re-derive per-passenger arrival data via
+       * generateTrialBatch for the replay's waiting-count computation. See
+       * dev_log/09_waiting_counts.md, "Where the Scenario needed for generateTrialBatch comes
+       * from". Not a live reference to a mutable draft -- buildScenario returns a freshly
+       * constructed object each call, same property Unit 07 already required of `building`. */
+      scenario: Scenario;
     }
   | { status: 'error'; message: string };
 
