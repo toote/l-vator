@@ -28,6 +28,7 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
     config: randomDraft(),
     selectedAlgorithmIds: ['fcfs-nearest-car'],
     run: { status: 'idle' },
+    replay: null,
     ...overrides,
   };
 }

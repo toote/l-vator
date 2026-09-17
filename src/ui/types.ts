@@ -2,8 +2,8 @@
 // src/generation and src/metrics's established style. See dev_log/06_ui.md, "State model" and
 // "Config panel fields and defaults".
 
-import type { FloorIndex } from '../engine';
-import type { ArrivalPattern, ScriptedScenario } from '../generation';
+import type { BuildingConfig, FloorIndex } from '../engine';
+import type { ArrivalPattern, ScriptedScenario, TrialRunResult } from '../generation';
 import type { AlgorithmMetrics } from '../metrics';
 
 export type ScenarioMode = 'random' | 'scripted';
@@ -55,11 +55,35 @@ export interface ConfigDraft {
 export type RunState =
   | { status: 'idle' }
   | { status: 'running' }
-  | { status: 'done'; metrics: AlgorithmMetrics[] }
+  | {
+      status: 'done';
+      metrics: AlgorithmMetrics[];
+      /** Unit 04's TrialRunResult[] -- retained for Unit 07's replay (full per-trial logs). */
+      trialResults: TrialRunResult[];
+      /** The exact BuildingConfig this run used, snapshotted -- NOT a live reference to
+       * state.config.building, which the user can keep editing after a run completes. */
+      building: BuildingConfig;
+    }
   | { status: 'error'; message: string };
+
+/**
+ * Which algorithm/trial to replay, and playback position/state. A sibling field to `run`, not
+ * nested inside RunState['done'] -- see dev_log/07_results.md, "AppState: replay-selection
+ * state". Single-panel replay only: one algorithm at a time (side-by-side deferred).
+ */
+export interface ReplaySelection {
+  algorithmId: string;
+  trialIndex: number;
+  simTimeMs: number;
+  playing: boolean;
+  /** Simulated ms advanced per real ms -- e.g. 5 means 5x speed. */
+  speed: number;
+}
 
 export interface AppState {
   config: ConfigDraft;
   selectedAlgorithmIds: string[];
   run: RunState;
+  /** Null until a run completes. */
+  replay: ReplaySelection | null;
 }

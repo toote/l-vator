@@ -1,72 +1,12 @@
-// Minimal plain results readout + error banner. See dev_log/06_ui.md, "Run controls and the
-// minimal results readout" -- deliberately plain per this unit's scope-boundary resolution: no
-// charts, no color-coding, no sorting/highlighting, no per-run replay selector (that's Unit 07).
+// Top-level "Results" section. idle/running/error messages unchanged verbatim from Unit 06; the
+// 'done' branch now renders the dashboard (comparison table) + replay (animated cross-section)
+// views instead of Unit 06's old inline plain table -- see dev_log/07_results.md.
 
-import { algorithms } from '../algorithms';
-import type { AlgorithmMetrics } from '../metrics';
+import { renderDashboardView } from './dashboard/dashboardView';
+import { renderReplayView } from './replay/replayView';
 import type { AppState } from './types';
 
-function formatNumber(value: number | null): string {
-  return value === null ? 'n/a' : value.toFixed(1);
-}
-
-function algorithmName(algorithmId: string): string {
-  return algorithms.find((algorithm) => algorithm.id === algorithmId)?.name ?? algorithmId;
-}
-
-const COLUMNS = [
-  'Algorithm',
-  'Trials',
-  'Avg wait (ms)',
-  'Max wait (ms)',
-  'Avg travel (ms)',
-  'Total distance (floors)',
-  'Throughput (per hour)',
-  'Avg occupancy (%)',
-  'Deadhead (%)',
-  'Unserved (count / %)',
-];
-
-function metricsRow(metrics: AlgorithmMetrics): string[] {
-  return [
-    algorithmName(metrics.algorithmId),
-    String(metrics.trialCount),
-    formatNumber(metrics.averageWaitTimeMs),
-    formatNumber(metrics.maxWaitTimeMs),
-    formatNumber(metrics.averageTravelTimeMs),
-    metrics.totalDistanceFloors.toFixed(1),
-    formatNumber(metrics.throughputPerHour),
-    formatNumber(metrics.averageOccupancyWhileMovingPct),
-    formatNumber(metrics.deadheadTravelPct),
-    `${metrics.unservedCount} (${formatNumber(metrics.unservedPct)})`,
-  ];
-}
-
-function renderResultsTable(metrics: AlgorithmMetrics[]): HTMLTableElement {
-  const table = document.createElement('table');
-
-  const headerRow = document.createElement('tr');
-  for (const column of COLUMNS) {
-    const th = document.createElement('th');
-    th.textContent = column;
-    headerRow.appendChild(th);
-  }
-  table.appendChild(headerRow);
-
-  for (const row of metrics) {
-    const tr = document.createElement('tr');
-    for (const cell of metricsRow(row)) {
-      const td = document.createElement('td');
-      td.textContent = cell;
-      tr.appendChild(td);
-    }
-    table.appendChild(tr);
-  }
-
-  return table;
-}
-
-export function renderResultsView(state: AppState): HTMLElement {
+export function renderResultsView(state: AppState, render: () => void): HTMLElement {
   const section = document.createElement('section');
 
   const heading = document.createElement('h2');
@@ -96,6 +36,7 @@ export function renderResultsView(state: AppState): HTMLElement {
     return section;
   }
 
-  section.appendChild(renderResultsTable(run.metrics));
+  section.appendChild(renderDashboardView(run.metrics, render));
+  section.appendChild(renderReplayView(state, render));
   return section;
 }

@@ -4,6 +4,7 @@ import { algorithms } from '../algorithms';
 import { runTrialBatch } from '../generation';
 import { computeMetrics } from '../metrics';
 import { buildScenario } from './buildScenario';
+import { DEFAULT_SPEED } from './replay/replayClock';
 import type { AppState } from './types';
 import { validate } from './validation';
 
@@ -47,7 +48,20 @@ export function renderRunControls(state: AppState, render: () => void): HTMLElem
         );
         const trialResults = runTrialBatch(scenario, selectedAlgorithms);
         const metrics = computeMetrics(trialResults, scenario);
-        state.run = { status: 'done', metrics };
+        // Snapshot the building actually used for this run -- not a live reference to
+        // scenario.building (itself already a fresh copy of state.config.building for random
+        // mode, but the stored ScriptedScenario's building for scripted mode) -- see
+        // dev_log/07_results.md, "A gap this unit must close first".
+        state.run = { status: 'done', metrics, trialResults, building: { ...scenario.building } };
+        // (Re)initialize replay selection: first algorithm actually run, trial 0, paused at the
+        // start, default speed. Re-running always replaces this wholesale, same as state.run.
+        state.replay = {
+          algorithmId: selectedAlgorithms[0].id,
+          trialIndex: 0,
+          simTimeMs: 0,
+          playing: false,
+          speed: DEFAULT_SPEED,
+        };
       } catch (error) {
         state.run = {
           status: 'error',

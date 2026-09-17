@@ -54,5 +54,6 @@ export function initialState(): AppState {
     // All algorithms checked by default -- see dev_log/06_ui.md, "Algorithm selection".
     selectedAlgorithmIds: algorithms.map((algorithm) => algorithm.id),
     run: { status: 'idle' },
+    replay: null,
   };
 }

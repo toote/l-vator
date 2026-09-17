@@ -27,7 +27,7 @@ export function mount(root: HTMLElement): void {
     root.appendChild(renderConfigPanel(state, render));
     root.appendChild(renderAlgorithmSelect(state, render));
     root.appendChild(renderRunControls(state, render));
-    root.appendChild(renderResultsView(state));
+    root.appendChild(renderResultsView(state, render));
   }
 
   render();
