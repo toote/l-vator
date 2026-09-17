@@ -46,20 +46,55 @@ function nearestFloor(floors: readonly FloorIndex[], from: FloorIndex): FloorInd
 }
 
 /**
- * Drops assignments whose call is no longer active, then assigns each still-unassigned active
- * call to the nearest still-unassigned, available elevator — excluding, within this same pass,
- * any elevator already claimed for an earlier call in the loop (see dev_log/03_algorithms.md,
- * "Multiple simultaneous unassigned calls in one invocation").
+ * An assignment plus whether the assigned elevator has ever actually reached the call's floor.
+ * `hasVisited` is what makes an overflow assignment releasable (see refreshAssignments) without
+ * also releasing an elevator that's merely still travelling toward a call it hasn't reached yet.
  */
-function refreshAssignments(snapshot: DispatchSnapshot, assignments: Map<string, HallCall>): void {
+interface Assignment {
+  call: HallCall;
+  hasVisited: boolean;
+}
+
+/**
+ * Drops assignments whose call is no longer active, releases an assignment once its elevator has
+ * visited the call's floor and since left while the call is STILL active (overflow — capacity ran
+ * out before everyone waiting could board), then assigns each now-unassigned active call to the
+ * nearest still-unassigned, available elevator — excluding, within this same pass, any elevator
+ * already claimed for an earlier call in the loop (see dev_log/03_algorithms.md, "Multiple
+ * simultaneous unassigned calls in one invocation").
+ *
+ * The release step is what lets a second elevator help with a call one elevator can't clear alone
+ * (see dev_log/03_algorithms_done.md's amendment for the full "why" — without it, an assignment
+ * was permanent for as long as the call stayed active, so an elevator that already left to deliver
+ * its current load stayed "assigned" to a floor it had no way to help again anytime soon, while
+ * every other elevator sat idle, structurally excluded from that same call).
+ */
+function refreshAssignments(
+  snapshot: DispatchSnapshot,
+  assignments: Map<string, Assignment>,
+): void {
   const activeKeys = new Set(snapshot.activeHallCalls.map(callKey));
-  for (const [elevatorId, call] of assignments) {
-    if (!activeKeys.has(callKey(call))) {
+  const elevatorsById = new Map(snapshot.elevators.map((e) => [e.id, e]));
+
+  for (const [elevatorId, assignment] of assignments) {
+    if (!activeKeys.has(callKey(assignment.call))) {
+      assignments.delete(elevatorId);
+      continue;
+    }
+    const elevator = elevatorsById.get(elevatorId);
+    if (!elevator) continue; // defensive: elevator id from a prior snapshot no longer present
+    if (elevator.currentFloor === assignment.call.floor) {
+      assignment.hasVisited = true;
+    } else if (assignment.hasVisited) {
+      // Visited, and has since left, but the call is still active: release it — this elevator
+      // already got its chance here and is now busy elsewhere; let the next assignment pass
+      // (below, same invocation) consider every elevator fresh, including this one if it's still
+      // nearest, or another one if it isn't.
       assignments.delete(elevatorId);
     }
   }
 
-  const assignedCallKeys = new Set(Array.from(assignments.values()).map(callKey));
+  const assignedCallKeys = new Set(Array.from(assignments.values()).map((a) => callKey(a.call)));
   // Order = snapshot.activeHallCalls's own order — a guaranteed contract of the engine (see
   // src/engine/dispatch.ts) — which is what makes this "first come, first served".
   const unassignedCalls = snapshot.activeHallCalls.filter(
@@ -83,17 +118,22 @@ function refreshAssignments(snapshot: DispatchSnapshot, assignments: Map<string,
     }
     // `best` is now in `assignments`, so it's excluded from `candidates` on the next iteration
     // of this same loop pass.
-    assignments.set(best.id, call);
+    assignments.set(best.id, { call, hasVisited: best.currentFloor === call.floor });
   }
 }
 
-function decide(elevator: ElevatorSnapshot, assignments: Map<string, HallCall>): DispatchAction {
+function decide(elevator: ElevatorSnapshot, assignments: Map<string, Assignment>): DispatchAction {
   if (elevator.carButtons.includes(elevator.currentFloor)) {
     return { type: 'stop', elevatorId: elevator.id }; // drop-off takes priority over a new pickup
   }
 
-  const call = assignments.get(elevator.id);
-  if (call && call.floor === elevator.currentFloor) {
+  const call = assignments.get(elevator.id)?.call;
+  // Only stop for the assigned pickup while there's actually room — a full elevator has nothing
+  // to gain by reopening its doors here again, and unconditionally doing so would strand it at
+  // this floor forever (it would never issue 'travel' to go deliver what it's already carrying,
+  // and refreshAssignments' release-on-departure above would then never get a chance to run,
+  // since the elevator would never actually leave). See dev_log/03_algorithms_done.md's amendment.
+  if (call && call.floor === elevator.currentFloor && elevator.capacityRemaining > 0) {
     return { type: 'stop', elevatorId: elevator.id }; // pickup
   }
 
@@ -115,7 +155,7 @@ export const algorithm: Algorithm = {
   id: 'fcfs-nearest-car',
   name: 'FCFS / Nearest Car',
   createHook: (): DispatchHook => {
-    const assignments = new Map<string, HallCall>();
+    const assignments = new Map<string, Assignment>();
     return (snapshot: DispatchSnapshot): DispatchAction[] => {
       refreshAssignments(snapshot, assignments);
       return snapshot.elevators.map((elevator) => decide(elevator, assignments));

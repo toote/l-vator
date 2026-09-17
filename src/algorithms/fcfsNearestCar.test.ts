@@ -251,3 +251,84 @@ describe('fcfsNearestCar (hook-level)', () => {
     expect(ids.sort()).toEqual(['E1', 'E2', 'E3']);
   });
 });
+
+describe('fcfsNearestCar (overflow handoff to a second elevator)', () => {
+  it('releases the assignment once the assigned elevator visits and departs, letting an idle second elevator help', () => {
+    // Regression test for a real bug: an assignment used to persist for as long as its call
+    // stayed active, regardless of the assigned elevator's actual position - so once E1 filled up
+    // and left to deliver, it kept "owning" the still-active call, permanently excluding E2 (idle
+    // the whole time) from ever helping. Four passengers, capacity 2: E1 can only take 2 on its
+    // first stop: the other 2 must be served by E2 once E1's assignment is released.
+    const config = buildConfig({
+      floorCount: 5,
+      elevatorCount: 2,
+      capacity: 2,
+      floorTravelTimeMs: 100,
+      doorDwellBaseMs: 50,
+      doorDwellPerPassengerMultiplier: 0,
+    });
+
+    // Origin floor 2 (not 0, where both elevators start) is deliberate: it gives E1 travel time
+    // to get there, so all four same-tick arrivals are fully queued in waitingPassengers before
+    // its first decision point - otherwise the very first arrival triggers an immediate stop (E1
+    // starts idle at floor 0) before the other three same-timestamp arrival events have even been
+    // processed, splitting what should be one 2-passenger stop into two 1-passenger stops.
+    const script = [
+      arrival('p1', 2, 'up', 3, 0),
+      arrival('p2', 2, 'up', 4, 0),
+      arrival('p3', 2, 'up', 3, 0),
+      arrival('p4', 2, 'up', 4, 0),
+    ];
+
+    const { log, finalState } = runSimulation(config, script, algorithm.createHook(), {
+      maxTimeMs: 10_000,
+    });
+
+    // Nobody left behind, and it didn't need anywhere near the old ~6-million-ms cutoff to finish.
+    expect(finalState.waitingPassengers).toEqual([]);
+    const boarded = log.filter((e) => e.type === 'passengerBoarded');
+    expect(boarded).toHaveLength(4);
+
+    // The overflow pair boarded via E2, not via E1 coming back for a second trip - proof the
+    // assignment was actually handed off, not just eventually round-tripped by the same car.
+    const boardedByElevator = new Map(
+      boarded.map((e) => [
+        e.type === 'passengerBoarded' ? e.passengerId : '',
+        e.type === 'passengerBoarded' ? e.elevatorId : '',
+      ]),
+    );
+    const elevatorsUsed = new Set(boardedByElevator.values());
+    expect(elevatorsUsed).toEqual(new Set(['E1', 'E2']));
+
+    // E1's first stop (at floor 2, once it arrives) takes exactly 2 (capacity), then it departs
+    // to deliver rather than sitting there reopening its doors for people it can't take.
+    const firstStopBoardings = boarded.filter(
+      (e) => e.type === 'passengerBoarded' && e.floor === 2 && e.elevatorId === 'E1',
+    );
+    expect(firstStopBoardings).toHaveLength(2);
+  });
+
+  it('does not stop for its own assigned pickup once full, prioritizing delivering onboard passengers instead', () => {
+    const hook = algorithm.createHook();
+    // First invocation: E1 idle at the call floor, assigned (capacity available at snapshot time).
+    const snapshot = makeSnapshot({
+      elevators: [
+        makeElevator({ id: 'E1', currentFloor: 0, capacityRemaining: 0, carButtons: [5] }),
+      ],
+      activeHallCalls: [call(0, 'up')],
+    });
+
+    // Prime the closure with an assignment to floor 0 by first assigning while capacity existed.
+    hook(
+      makeSnapshot({
+        elevators: [makeElevator({ id: 'E1', currentFloor: 0, capacityRemaining: 1 })],
+        activeHallCalls: [call(0, 'up')],
+      }),
+    );
+
+    // Now E1 is full (capacityRemaining: 0) and has an onboard passenger destined for floor 5,
+    // while still sitting at the assigned call's floor with the call still active (overflow).
+    const actions = hook(snapshot);
+    expect(actions).toEqual([{ type: 'travel', elevatorId: 'E1', direction: 'up' }]);
+  });
+});
