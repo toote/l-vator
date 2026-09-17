@@ -249,3 +249,69 @@ describe('boarding direction vs. arrival direction', () => {
     expect(attempted.floor).toBe(1);
   });
 });
+
+describe('zero-transaction stops still cost door-dwell time', () => {
+  it('does not loop forever when a full elevator stops for a pickup it has no room for', () => {
+    // A full elevator (capacityRemaining 0) told to 'stop' at a floor with only an active pickup
+    // call (nothing onboard destined here) boards nobody and alights nobody. Before the fix, a
+    // zero-passenger stop cost zero dwell time, which re-fired the identical decision at the
+    // identical timestamp forever - a real bug found via Unit 04's fairness testing under
+    // realistic passenger load (see dev_log/02_engine_done.md's amendment). Reproduced directly
+    // here without needing random generation: capacity 1, two passengers waiting at the same
+    // floor/direction, so the elevator is full after boarding the first and must still "stop"
+    // for the second (assigned or not) at least once more.
+    const config = buildBasicConfig({
+      floorCount: 3,
+      capacity: 1,
+      floorTravelTimeMs: 100,
+      doorDwellBaseMs: 100,
+      doorDwellPerPassengerMultiplier: 0,
+    });
+
+    const hook: DispatchHook = (snapshot) => {
+      const elevator = snapshot.elevators[0];
+      if (!elevator) return [];
+      const hasCallHere = snapshot.activeHallCalls.some((c) => c.floor === elevator.currentFloor);
+      const hasButtonHere = elevator.carButtons.includes(elevator.currentFloor);
+      // Deliberately keeps trying to 'stop' at floor 1 even once full - a real algorithm might
+      // avoid this via a capacity check, but the engine must not hang even if one doesn't.
+      if (hasCallHere || hasButtonHere) return [{ type: 'stop', elevatorId: elevator.id }];
+      if (elevator.currentFloor < 1) {
+        return [{ type: 'travel', elevatorId: elevator.id, direction: 'up' }];
+      }
+      return [{ type: 'idle', elevatorId: elevator.id }];
+    };
+
+    const { log, finalState } = runSimulation(
+      config,
+      [passengerArrival('p1', 1, 'up', 2, 0), passengerArrival('p2', 1, 'up', 2, 0)],
+      hook,
+      { maxTimeMs: 10_000 },
+    );
+
+    // p1 boards immediately; p2 is left waiting (capacity 1) until a later pass once p1 alights.
+    const boarded = log.filter((e) => e.type === 'passengerBoarded');
+    expect(boarded.map((e) => (e.type === 'passengerBoarded' ? e.passengerId : undefined))).toEqual(
+      ['p1'],
+    );
+    expect(finalState.waitingPassengers).toHaveLength(1);
+    expect(finalState.waitingPassengers[0]?.id).toBe('p2');
+
+    // The zero-transaction stop(s) at floor 1 while full still consumed real time (non-zero
+    // dwell) rather than looping - proven simply by the simulation terminating at all within the
+    // bounded cutoff, plus every doorsOpened/doorsClosed pair having non-zero duration.
+    const doorPairs: { opened: number; closed: number }[] = [];
+    let pendingOpen: number | undefined;
+    for (const entry of log) {
+      if (entry.type === 'doorsOpened') pendingOpen = entry.time;
+      if (entry.type === 'doorsClosed' && pendingOpen !== undefined) {
+        doorPairs.push({ opened: pendingOpen, closed: entry.time });
+        pendingOpen = undefined;
+      }
+    }
+    expect(doorPairs.length).toBeGreaterThan(0);
+    for (const pair of doorPairs) {
+      expect(pair.closed).toBeGreaterThan(pair.opened);
+    }
+  });
+});

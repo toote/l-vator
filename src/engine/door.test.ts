@@ -6,8 +6,8 @@ describe('computeDoorDwellMs', () => {
   const base = 3000;
   const defaultMultiplier = 0.5;
 
-  it('returns 0 for zero passengers', () => {
-    expect(computeDoorDwellMs(0, base, defaultMultiplier)).toBe(0);
+  it('returns just the base for zero passengers (doors still open and close)', () => {
+    expect(computeDoorDwellMs(0, base, defaultMultiplier)).toBe(3000);
   });
 
   it('returns just the base for a single passenger', () => {
@@ -29,6 +29,6 @@ describe('computeDoorDwellMs', () => {
   });
 
   it('treats negative counts the same as zero (defensive)', () => {
-    expect(computeDoorDwellMs(-1, base, defaultMultiplier)).toBe(0);
+    expect(computeDoorDwellMs(-1, base, defaultMultiplier)).toBe(3000);
   });
 });

@@ -62,7 +62,7 @@ describe('decision-point re-invocation and mid-route redirection', () => {
       [{ type: 'travel', elevatorId: 'E1', direction: 'down' }], // call 2: t=2000, arrived floor2 -> redirect
       [{ type: 'travel', elevatorId: 'E1', direction: 'down' }], // call 3: t=3000, arrived floor1 (heading down)
       [{ type: 'stop', elevatorId: 'E1' }], // call 4: t=4000, arrived floor0
-      [], // call 5: t=4000, doors finished dwell -> defaults to idle
+      [], // call 5: t=7000, doors finished dwell (base dwell, no one boards) -> defaults to idle
     ];
     const scripted = createScriptedDispatchHook(
       (_snapshot, callIndex) => responses[callIndex] ?? [],
@@ -80,7 +80,7 @@ describe('decision-point re-invocation and mid-route redirection', () => {
 
     expect(hook).toHaveBeenCalledTimes(6);
     expect(hook.mock.calls.map(([snapshot]) => snapshot.time)).toEqual([
-      0, 1000, 2000, 3000, 4000, 4000,
+      0, 1000, 2000, 3000, 4000, 7000,
     ]);
 
     // At the moment of redirection (call index 2), the hook actually saw the elevator sitting at
