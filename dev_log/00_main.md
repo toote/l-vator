@@ -6,7 +6,7 @@ Development follows MMDD (see `00_mmdd.md`): small approved units, documented ch
 
 ## Structure
 
-Units and subunits follow the MMDD convention described in `00_mmdd.md`. Anticipated early units (see Planned Units below) roughly track: project scaffolding → simulation engine core → algorithms → call generation → UI/config panel → replay & dashboard → metrics → deploy pipeline. Exact sequencing and splitting into subunits will be decided unit-by-unit as complexity warrants.
+Units and subunits follow the MMDD convention described in `00_mmdd.md`. The seven units actually built, in order: scaffolding → simulation engine core → algorithms → call generation → metrics → UI/config panel → replay & dashboard (see Units Implemented below for links to each unit's plan and completion record).
 
 ## About the Project
 
@@ -37,16 +37,16 @@ The initial interaction mode is **configured batch simulation** (set parameters,
 
 ### Overall Completion
 
-Unit 01 (scaffolding) complete. Design/requirements phase complete (captured via grilling session, see below). No application logic written yet.
+**All seven originally planned units are complete.** The baseline scope described in "What This Is" above is fully implemented: configure a building/fleet/scenario, run N seeded trials against one or more dispatch algorithms, and see results as both an animated replay and a comparison dashboard. No units remain planned; only the three explicitly-deferred Future Enhancements below are out of scope.
 
 ### Completed Features
 
 - Working Vite + TS project shell: dev server, static build (base `/L-vator/`), ESLint + Prettier, Vitest, GitHub Actions Pages deploy pipeline (untested end-to-end — not yet pushed to a remote).
 - Headless discrete-event simulation engine (`src/engine/`): event queue, elevator state machine, floor-to-floor movement, capacity/overflow, presence-only hall calls, door-dwell timing, event log, and the `DispatchHook` seam for algorithms to plug into.
-- Three dispatch algorithms (`src/algorithms/`): FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching — auto-discovered via `import.meta.glob`, ready for Units 04/05/06 to run and compare.
-- Call generation (`src/generation/`, `src/scenarios/`): seeded random arrivals (up-peak/down-peak/random patterns), scripted scenarios, and the fairness-guaranteed trial batch/runner every algorithm comparison will run through.
+- Three dispatch algorithms (`src/algorithms/`): FCFS/naive nearest-car, SCAN/LOOK, nearest-car with directional matching — auto-discovered via `import.meta.glob`, including overflow-handoff logic so a second elevator can help when one can't keep up with demand alone.
+- Call generation (`src/generation/`, `src/scenarios/`): seeded random arrivals (up-peak/down-peak/random patterns), scripted scenarios, and the fairness-guaranteed trial batch/runner every algorithm comparison runs through.
 - Metrics (`src/metrics/`): eight headline metrics per algorithm (wait/travel time, max wait, distance, throughput, occupancy, deadhead %, unserved count/%), pooled correctly across N seeded trials.
-- UI (`src/ui/`): config panel (building/fleet/timing/arrival, random or scripted scenarios), algorithm selection, run controls, and a plain results table proving the full pipeline works end-to-end in a browser.
+- UI (`src/ui/`): config panel (building/fleet/timing/arrival, random or scripted scenarios), algorithm selection, run controls, an animated single-panel replay of any selected trial, and a sortable, best-algorithm-highlighted comparison dashboard.
 
 ## Units Implemented
 
@@ -58,14 +58,15 @@ Unit 01 (scaffolding) complete. Design/requirements phase complete (captured via
 * **[04](04_generation.md)**: Generation - seeded random arrival generation, scripted scenarios, fairness-guaranteed trial batch/runner. See [04_generation_done.md](04_generation_done.md) for completion details.
 * **[05](05_metrics.md)**: Metrics - eight headline metrics per algorithm, pooled correctly across N seeded trials. See [05_metrics_done.md](05_metrics_done.md) for completion details.
 * **[06](06_ui.md)**: UI - config panel, algorithm selection, run controls, plain results table. See [06_ui_done.md](06_ui_done.md) for completion details.
+* **[07](07_results.md)**: Results presentation - animated single-panel replay with corrected event-log interpolation, sortable/highlighted comparison dashboard. See [07_results_done.md](07_results_done.md) for completion details.
 
 ### Units In Progress
 
-None yet.
+None.
 
 ## Planned Units
 
-* **07**: Results presentation — animated replay of a selected run (e.g. "Run 7 of 20") plus a dashboard aggregating metrics across all runs and algorithms.
+None — all originally planned units (01-07) are complete.
 
 ### Future Enhancements (explicitly out of baseline scope)
 

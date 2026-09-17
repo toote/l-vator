@@ -326,4 +326,4 @@ Created: `src/ui/replay/replayFrame.ts`, `replayClock.ts`, `replayCrossSection.t
 
 Modified: `src/ui/types.ts` (`RunState['done']` extended, `ReplaySelection`/`AppState.replay` added), `src/ui/state.ts` (initial `replay: null`), `src/ui/app.ts`, `src/ui/runControls.ts` (populates `trialResults`/`building`, initializes `replay` on run completion), `src/ui/resultsView.ts` (`'done'` branch now renders dashboard + replay instead of the old inline table; idle/running/error unchanged), `src/ui/validation.test.ts` (one-line fixture fix), `dev_log/07_results.md` (this file).
 
-## Status: Implemented — awaiting developer validation
+## Status: Complete
