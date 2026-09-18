@@ -13,6 +13,7 @@ function randomDraft(overrides: Partial<ConfigDraft> = {}): ConfigDraft {
       floorTravelTimeMs: 2000,
       doorDwellBaseMs: 3000,
       doorDwellPerPassengerMultiplier: 0.5,
+      idleReturnThresholdMs: 30000,
     },
     arrivals: { baseRatePerMinute: 6, pattern: 'up-peak', floorRates: {} },
     durationMinutes: 5,
@@ -42,6 +43,7 @@ const exampleScriptedScenario: ScriptedScenario = {
     floorTravelTimeMs: 2000,
     doorDwellBaseMs: 3000,
     doorDwellPerPassengerMultiplier: 0.5,
+    idleReturnThresholdMs: 30000,
   },
   trialCount: 1,
   script: [],
@@ -84,6 +86,24 @@ describe('validate', () => {
     const config = randomDraft();
     config.building.floorCount = -3;
     expect(validate(makeState({ config }))).toMatch(/at least 1/i);
+  });
+
+  it('fails when idleReturnThresholdMs is NaN (blank input)', () => {
+    const config = randomDraft();
+    config.building.idleReturnThresholdMs = NaN;
+    expect(validate(makeState({ config }))).toMatch(/idle return threshold/i);
+  });
+
+  it('fails when idleReturnThresholdMs is negative', () => {
+    const config = randomDraft();
+    config.building.idleReturnThresholdMs = -1;
+    expect(validate(makeState({ config }))).toMatch(/idle return threshold/i);
+  });
+
+  it('passes when idleReturnThresholdMs is exactly 0 -- unlike floorCount, 0 is a legal value here', () => {
+    const config = randomDraft();
+    config.building.idleReturnThresholdMs = 0;
+    expect(validate(makeState({ config }))).toBeNull();
   });
 
   it('passes for a well-formed scripted-mode draft', () => {

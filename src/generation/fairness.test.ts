@@ -43,6 +43,7 @@ const building: BuildingConfig = {
   floorTravelTimeMs: 1000,
   doorDwellBaseMs: 1000,
   doorDwellPerPassengerMultiplier: 0.5,
+  idleReturnThresholdMs: 30000,
 };
 
 interface HallCallFact {

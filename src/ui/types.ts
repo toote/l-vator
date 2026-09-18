@@ -15,6 +15,8 @@ export interface BuildingDraft {
   floorTravelTimeMs: number;
   doorDwellBaseMs: number;
   doorDwellPerPassengerMultiplier: number;
+  /** See BuildingConfig.idleReturnThresholdMs — 0 is a valid, meaningful value here. */
+  idleReturnThresholdMs: number;
 }
 
 export interface ArrivalsDraft {

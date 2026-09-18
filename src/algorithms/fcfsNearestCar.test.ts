@@ -24,6 +24,7 @@ function buildConfig(overrides: Partial<BuildingConfig> = {}): BuildingConfig {
     floorTravelTimeMs: 500,
     doorDwellBaseMs: 1000,
     doorDwellPerPassengerMultiplier: 0.5,
+    idleReturnThresholdMs: 30000,
     ...overrides,
   };
 }
@@ -55,6 +56,8 @@ function makeSnapshot(overrides: Partial<DispatchSnapshot> = {}): DispatchSnapsh
     time: 0,
     elevators: [],
     activeHallCalls: [],
+    idleReturnThresholdMs: 30000,
+    floorTravelTimeMs: 1000,
     ...overrides,
   };
 }

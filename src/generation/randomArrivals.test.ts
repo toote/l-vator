@@ -10,6 +10,7 @@ const building: BuildingConfig = {
   floorTravelTimeMs: 2000,
   doorDwellBaseMs: 3000,
   doorDwellPerPassengerMultiplier: 0.5,
+  idleReturnThresholdMs: 30000,
 };
 
 describe('generateRandomArrivals', () => {

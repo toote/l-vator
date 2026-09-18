@@ -22,6 +22,14 @@ export interface BuildingConfig {
   doorDwellBaseMs: number;
   /** e.g. 0.5 for the default 50% */
   doorDwellPerPassengerMultiplier: number;
+  /**
+   * How long (ms) an elevator must sit idle before a homing dispatch algorithm sends it back to
+   * the lobby (floor 0, hardcoded — see dev_log/10_homing_algorithms.md's resolved open
+   * questions). Read only by the three `*Homing.ts` algorithms; every other algorithm ignores it,
+   * exactly like they already ignore `time` for anything but tie-breaking-adjacent logic. `0` is
+   * valid and meaningful ("return home immediately on going idle"), unlike `doorDwellBaseMs`.
+   */
+  idleReturnThresholdMs: number;
 }
 
 export interface Passenger {

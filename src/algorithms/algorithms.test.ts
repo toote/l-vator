@@ -17,6 +17,7 @@ function buildConfig(overrides: Partial<BuildingConfig> = {}): BuildingConfig {
     floorTravelTimeMs: 100,
     doorDwellBaseMs: 100,
     doorDwellPerPassengerMultiplier: 0,
+    idleReturnThresholdMs: 30000,
     ...overrides,
   };
 }
@@ -148,12 +149,15 @@ describe('cross-algorithm comparative sanity', () => {
 });
 
 describe('algorithms discovery (index.ts)', () => {
-  it('contains exactly the three expected algorithms, discovered automatically', () => {
-    expect(algorithms).toHaveLength(3);
+  it('contains exactly the six expected algorithms, discovered automatically (Unit 10 added the three homing variants)', () => {
+    expect(algorithms).toHaveLength(6);
     expect(algorithms.map((a) => a.id).sort()).toEqual([
       'fcfs-nearest-car',
+      'fcfs-nearest-car-homing',
       'nearest-car-directional',
+      'nearest-car-directional-homing',
       'scan-look',
+      'scan-look-homing',
     ]);
   });
 

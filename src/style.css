@@ -1,13 +1,22 @@
 :root {
   --text: #1f2028;
   --bg: #ffffff;
-  /* Chart series colors (Unit 08 dashboard charts) -- fixed per-algorithm identity, assigned by
-     registry index via src/ui/dashboard/algorithmColor.ts, never by an AlgorithmMetrics[] run's
-     row order. Validated (dataviz skill's validate_palette.js) against this project's actual
-     --bg, --pairs all -- see dev_log/08_charts.md / 08_charts_test.md for the recorded output. */
+  /* Chart series colors (Unit 08 dashboard charts, extended to 6 slots by Unit 10's homing
+     algorithm variants) -- fixed per-algorithm identity, assigned by registry index via
+     src/ui/dashboard/algorithmColor.ts, never by an AlgorithmMetrics[] run's row order.
+     Validated (dataviz skill's validate_palette.js) against this project's actual --bg, --pairs
+     all -- see dev_log/08_charts.md / 08_charts_test.md (slots 1-3) and
+     dev_log/10_homing_algorithms.md / 10_homing_algorithms_test.md (slots 4-6, added together
+     since a categorical palette's checks are pairwise across the whole set) for the recorded
+     output. Slots 3/6 (light) and 4 (dark) carry an accepted, plan-anticipated contrast-vs-
+     surface WARN, mitigated by direct labels + the adjacent table view, same as slot 3 always
+     has been since Unit 08. */
   --series-1: #2a78d6; /* blue */
   --series-2: #eb6834; /* orange */
   --series-3: #1baf7a; /* aqua */
+  --series-4: #9e2e2e; /* brick red */
+  --series-5: #cbac4d; /* khaki gold */
+  --series-6: #20afdf; /* sky blue */
   font:
     18px/1.45 system-ui,
     'Segoe UI',
@@ -25,6 +34,9 @@
     --series-1: #3987e5;
     --series-2: #d95926;
     --series-3: #199e70;
+    --series-4: #7a26c2; /* purple */
+    --series-5: #ea1ef2; /* magenta */
+    --series-6: #c42b79; /* rose */
   }
 }
 

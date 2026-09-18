@@ -87,6 +87,7 @@ export function buildBasicConfig(overrides: Partial<BuildingConfig> = {}): Build
     floorTravelTimeMs: 1000,
     doorDwellBaseMs: 3000,
     doorDwellPerPassengerMultiplier: 0.5,
+    idleReturnThresholdMs: 30000,
     ...overrides,
   };
 }

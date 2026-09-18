@@ -94,6 +94,7 @@ describe('computeMetrics: end-to-end hand-traceable scenario', () => {
     floorTravelTimeMs: 1000,
     doorDwellBaseMs: 1000,
     doorDwellPerPassengerMultiplier: 0.5,
+    idleReturnThresholdMs: 30000,
   };
 
   const scenario: ScriptedScenario = {
@@ -166,6 +167,7 @@ describe('regenerated-batch correctness', () => {
       floorTravelTimeMs: 1000,
       doorDwellBaseMs: 1000,
       doorDwellPerPassengerMultiplier: 0.5,
+      idleReturnThresholdMs: 30000,
     };
     const scenario: ScriptedScenario = {
       type: 'scripted',
@@ -210,6 +212,7 @@ describe('regenerated-batch correctness', () => {
         floorTravelTimeMs: 500,
         doorDwellBaseMs: 500,
         doorDwellPerPassengerMultiplier: 0.5,
+        idleReturnThresholdMs: 30000,
       },
       arrivals: { baseRatePerMinute: 60, pattern: 'random' },
       durationMs: 4000,

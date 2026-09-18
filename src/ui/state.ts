@@ -35,6 +35,7 @@ export function defaultConfig(): ConfigDraft {
       floorTravelTimeMs: 5000,
       doorDwellBaseMs: 1000,
       doorDwellPerPassengerMultiplier: 0.5,
+      idleReturnThresholdMs: 30000,
     },
     arrivals: {
       baseRatePerMinute: 6,

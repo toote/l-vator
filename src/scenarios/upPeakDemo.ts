@@ -12,6 +12,7 @@ export const scenario: ScriptedScenario = {
     floorTravelTimeMs: 2000,
     doorDwellBaseMs: 3000,
     doorDwellPerPassengerMultiplier: 0.5,
+    idleReturnThresholdMs: 30000,
   },
   trialCount: 1,
   script: [

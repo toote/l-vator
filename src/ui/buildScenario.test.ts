@@ -13,6 +13,7 @@ function randomDraft(overrides: Partial<ConfigDraft> = {}): ConfigDraft {
       floorTravelTimeMs: 2000,
       doorDwellBaseMs: 3000,
       doorDwellPerPassengerMultiplier: 0.5,
+      idleReturnThresholdMs: 30000,
     },
     arrivals: {
       baseRatePerMinute: 6,
@@ -36,6 +37,7 @@ const exampleScriptedScenario: ScriptedScenario = {
     floorTravelTimeMs: 2000,
     doorDwellBaseMs: 3000,
     doorDwellPerPassengerMultiplier: 0.5,
+    idleReturnThresholdMs: 30000,
   },
   trialCount: 1,
   script: [{ id: 'p1', originFloor: 0, direction: 'up', destinationFloor: 3, arrivalTime: 0 }],
@@ -76,6 +78,7 @@ describe('buildScenario', () => {
         floorTravelTimeMs: 2000,
         doorDwellBaseMs: 3000,
         doorDwellPerPassengerMultiplier: 0.5,
+        idleReturnThresholdMs: 30000,
       },
       arrivals: { baseRatePerMinute: 6, pattern: 'random', floorRates: { 2: 4 } },
     });

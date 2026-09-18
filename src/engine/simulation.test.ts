@@ -141,6 +141,20 @@ describe('building config validation', () => {
     const noop = (): [] => [];
     expect(() => runSimulation(config, [], noop, SAFETY_CUTOFF)).not.toThrow();
   });
+
+  it('throws if idleReturnThresholdMs is negative', () => {
+    const config = buildBasicConfig({ idleReturnThresholdMs: -1 });
+    const noop = (): [] => [];
+    expect(() => runSimulation(config, [], noop, SAFETY_CUTOFF)).toThrow(
+      /idleReturnThresholdMs must be >= 0/,
+    );
+  });
+
+  it('accepts idleReturnThresholdMs of exactly 0 -- unlike doorDwellBaseMs, 0 is legitimate here ("return home immediately")', () => {
+    const config = buildBasicConfig({ idleReturnThresholdMs: 0 });
+    const noop = (): [] => [];
+    expect(() => runSimulation(config, [], noop, SAFETY_CUTOFF)).not.toThrow();
+  });
 });
 
 describe('combined door-dwell timing', () => {

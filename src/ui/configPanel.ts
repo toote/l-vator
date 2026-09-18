@@ -180,6 +180,16 @@ function renderRandomPanel(state: AppState, render: () => void): HTMLElement {
     ),
   );
   wrapper.appendChild(
+    numberField(
+      'Idle return threshold (ms)',
+      config.building.idleReturnThresholdMs,
+      (value) => {
+        config.building.idleReturnThresholdMs = value;
+      },
+      { min: 0 },
+    ),
+  );
+  wrapper.appendChild(
     numberField('Arrival rate (per minute)', config.arrivals.baseRatePerMinute, (value) => {
       config.arrivals.baseRatePerMinute = value;
     }),
@@ -210,6 +220,7 @@ function renderReadOnlyBuilding(building: {
   floorTravelTimeMs: number;
   doorDwellBaseMs: number;
   doorDwellPerPassengerMultiplier: number;
+  idleReturnThresholdMs: number;
 }): HTMLElement {
   const wrapper = document.createElement('div');
   const heading = document.createElement('p');
@@ -224,6 +235,7 @@ function renderReadOnlyBuilding(building: {
     ['Floor travel time (ms)', building.floorTravelTimeMs],
     ['Door dwell base (ms)', building.doorDwellBaseMs],
     ['Door dwell per-passenger multiplier', building.doorDwellPerPassengerMultiplier],
+    ['Idle return threshold (ms)', building.idleReturnThresholdMs],
   ];
   for (const [label, value] of entries) {
     const item = document.createElement('li');

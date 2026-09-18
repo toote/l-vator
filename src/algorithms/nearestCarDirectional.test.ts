@@ -20,6 +20,8 @@ function makeSnapshot(overrides: Partial<DispatchSnapshot> = {}): DispatchSnapsh
     time: 0,
     elevators: [],
     activeHallCalls: [],
+    idleReturnThresholdMs: 30000,
+    floorTravelTimeMs: 1000,
     ...overrides,
   };
 }

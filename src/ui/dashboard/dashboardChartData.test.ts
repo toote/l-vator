@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { algorithms } from '../../algorithms';
 import type { AlgorithmMetrics } from '../../metrics';
 import { computeChartPanels } from './dashboardChartData';
 
-// Real registered algorithm ids -- computeChartPanels row-orders by the actual registry (see
-// algorithmColor.ts), so fixtures use real ids rather than arbitrary placeholders.
-const [ALG_A, ALG_B, ALG_C] = algorithms.map((a) => a.id);
+// Real registered algorithm ids, in ascending algorithmRegistryIndex (COLOR_ORDER) order --
+// computeChartPanels row-orders by that fixed index (see algorithmColor.ts), NOT by
+// `algorithms`' own import.meta.glob-derived order, which (since Unit 10 added three more
+// algorithm files) no longer happens to agree with COLOR_ORDER for its first three entries. Using
+// real, registered ids (rather than arbitrary placeholders) still exercises the real lookup.
+const ALG_A = 'fcfs-nearest-car';
+const ALG_B = 'nearest-car-directional';
+const ALG_C = 'scan-look';
 
 function metrics(overrides: Partial<AlgorithmMetrics> & { algorithmId: string }): AlgorithmMetrics {
   return {

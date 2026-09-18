@@ -31,6 +31,7 @@ export function validate(state: AppState): string | null {
     ['Floor travel time', building.floorTravelTimeMs],
     ['Door dwell base', building.doorDwellBaseMs],
     ['Door dwell per-passenger multiplier', building.doorDwellPerPassengerMultiplier],
+    ['Idle return threshold', building.idleReturnThresholdMs],
     ['Arrival rate', arrivals.baseRatePerMinute],
     ['Trial count', state.config.trialCount],
     ['Duration (minutes)', state.config.durationMinutes],
@@ -48,6 +49,13 @@ export function validate(state: AppState): string | null {
   // layer -- not by touching Unit 04 -- alongside the input's HTML min="1".
   if (building.floorCount < 1) {
     return 'Floors (above ground) must be at least 1.';
+  }
+
+  // Unlike floorCount, 0 is a legal value here ("return home immediately on going idle") -- see
+  // src/engine/simulation.ts's validateBuildingConfig and dev_log/10_homing_algorithms.md. Only
+  // negative values are rejected.
+  if (building.idleReturnThresholdMs < 0) {
+    return 'Idle return threshold must be at least 0.';
   }
 
   return null;

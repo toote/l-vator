@@ -28,6 +28,14 @@ export interface DispatchSnapshot {
    * (e.g. to approximate first-come-first-served) without re-deriving it from timestamps.
    */
   activeHallCalls: ReadonlyArray<HallCall>;
+  /** Mirrors `BuildingConfig.idleReturnThresholdMs` — see its doc comment. Only the three homing
+   * algorithms read this; every other algorithm ignores it. */
+  idleReturnThresholdMs: number;
+  /** Mirrors `BuildingConfig.floorTravelTimeMs`. Lets an algorithm reason about realistic timing
+   * (e.g. "how long is too long for an assignment to sit unvisited") without hardcoding a
+   * building-specific assumption — see fcfsNearestCar.ts's/nearestCarDirectional.ts's assignment
+   * release-timeout logic for the motivating case. */
+  floorTravelTimeMs: number;
 }
 
 export type DispatchAction =

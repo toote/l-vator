@@ -11,6 +11,7 @@ const building: BuildingConfig = {
   floorTravelTimeMs: 500,
   doorDwellBaseMs: 500,
   doorDwellPerPassengerMultiplier: 0.5,
+  idleReturnThresholdMs: 30000,
 };
 
 function makeNoOpHook(): DispatchHook {

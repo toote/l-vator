@@ -81,6 +81,13 @@ function validateBuildingConfig(config: BuildingConfig): void {
         'time advancement.',
     );
   }
+  // Unlike doorDwellBaseMs, 0 is legitimate here ("return home immediately on going idle") — see
+  // dev_log/10_homing_algorithms.md. Only negative values are rejected.
+  if (!(config.idleReturnThresholdMs >= 0)) {
+    throw new Error(
+      `BuildingConfig.idleReturnThresholdMs must be >= 0 (got ${config.idleReturnThresholdMs})`,
+    );
+  }
 }
 
 export function runSimulation(
@@ -138,6 +145,8 @@ export function runSimulation(
       time,
       elevators,
       activeHallCalls: getActiveHallCalls(state.waitingPassengers),
+      idleReturnThresholdMs: config.idleReturnThresholdMs,
+      floorTravelTimeMs: config.floorTravelTimeMs,
     };
   }
 

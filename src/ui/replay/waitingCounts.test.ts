@@ -193,6 +193,7 @@ describe('groupWaitingCounts / computeWaitingCounts: trial-index-scoping regress
         floorTravelTimeMs: 500,
         doorDwellBaseMs: 500,
         doorDwellPerPassengerMultiplier: 0.5,
+        idleReturnThresholdMs: 30000,
       },
       arrivals: { baseRatePerMinute: 60, pattern: 'random' },
       durationMs: 4000,
