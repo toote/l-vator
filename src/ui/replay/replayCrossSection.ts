@@ -10,6 +10,11 @@ import type { WaitingCountFrame } from './waitingCounts';
 
 const ROW_HEIGHT_PX = 40;
 const SHAFT_WIDTH_PX = 64;
+/** Height of the per-elevator status label sitting above each shaft. A fixed pixel value (not
+ * `em`-relative sizing left to the browser) so the SAME value can also reserve a matching spacer
+ * above the floor-label column's rows -- otherwise the status labels push the shafts down while
+ * the floor labels stay put, misaligning "Floor N" with that row's actual shaft position. */
+const STATUS_HEIGHT_PX = 28;
 
 export interface CrossSectionHandle {
   root: HTMLElement;
@@ -108,6 +113,13 @@ export function renderCrossSection(
   labelsColumn.style.display = 'flex';
   labelsColumn.style.flexDirection = 'column';
 
+  // Spacer matching the elevator status labels' height (see STATUS_HEIGHT_PX) -- keeps "Floor N"
+  // rows aligned with their shaft, since the shaft column now has a status label above it that
+  // this column has no equivalent content for.
+  const labelsHeader = document.createElement('div');
+  labelsHeader.style.height = `${STATUS_HEIGHT_PX}px`;
+  labelsColumn.appendChild(labelsHeader);
+
   interface HallIndicator {
     element: HTMLElement;
     count: HTMLElement;
@@ -172,11 +184,17 @@ export function renderCrossSection(
     status.style.width = `${SHAFT_WIDTH_PX}px`;
     status.style.textAlign = 'center';
     status.style.fontSize = '0.65rem';
-    // Reserves space for a two-line status (e.g. "→ Floor 12") so a shorter one (e.g. "Idle")
-    // doesn't shrink the row and shift the shaft below it -- same layout-stability reasoning as
-    // the replay's waiting-count badges (see dev_log/09_waiting_counts_done.md's amendment).
-    status.style.minHeight = '1.6em';
-    status.style.marginBottom = '0.2rem';
+    // Fixed height (STATUS_HEIGHT_PX, matched by a spacer above the floor-label column -- see
+    // there) rather than a content-driven minHeight: a two-line status (e.g. "→ Floor 12") is
+    // vertically centered within it instead of growing the box, so a shorter one (e.g. "Idle")
+    // never shifts the shaft below it OR misaligns the floor-label rows beside it. Same
+    // layout-stability reasoning as the replay's waiting-count badges (see
+    // dev_log/09_waiting_counts_done.md's amendment).
+    status.style.height = `${STATUS_HEIGHT_PX}px`;
+    status.style.display = 'flex';
+    status.style.alignItems = 'center';
+    status.style.justifyContent = 'center';
+    status.style.lineHeight = '1.1';
     statusLabels.set(elevatorId, status);
 
     const shaft = document.createElement('div');
