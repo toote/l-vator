@@ -27,7 +27,7 @@ function randomDraft(overrides: Partial<ConfigDraft> = {}): ConfigDraft {
 function makeState(overrides: Partial<AppState> = {}): AppState {
   return {
     config: randomDraft(),
-    selectedAlgorithmIds: ['fcfs-nearest-car'],
+    selectedAlgorithmIds: ['nearest-car-directional'],
     run: { status: 'idle' },
     replay: null,
     ...overrides,

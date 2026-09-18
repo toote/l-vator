@@ -10,9 +10,10 @@
 //    test: a fully-loaded elevator commanded to 'stop' at a floor with only an active PICKUP call
 //    (nothing of its own to drop off there) boards nobody and alights nobody, producing a zero-ms
 //    door dwell that re-triggers the identical decision forever at the same simulated timestamp —
-//    a true infinite loop, reproduced with both fcfsNearestCar and scanLook. Fixing the
-//    engine/algorithms is out of scope for this unit, so `building` below is deliberately
-//    generous on capacity/elevatorCount relative to the arrival rate/duration.
+//    a true infinite loop, reproduced with both the original FCFS algorithm (removed in Unit 11 —
+//    see dev_log/11_algorithm_expansion.md) and scanLook. Fixing the engine/algorithms is out of
+//    scope for this unit, so `building` below is deliberately generous on capacity/elevatorCount
+//    relative to the arrival rate/duration.
 //
 // 2. `hallCallRegistered` is only logged when a (floor, direction) call transitions from
 //    inactive to active (see simulation.ts's `wasActive` check) — if a second passenger arrives
@@ -30,7 +31,7 @@
 //    dispatch speed.
 
 import { describe, expect, it } from 'vitest';
-import { algorithm as fcfs } from '../algorithms/fcfsNearestCar';
+import { algorithm as directional } from '../algorithms/nearestCarDirectional';
 import { algorithm as scanLook } from '../algorithms/scanLook';
 import type { BuildingConfig, Direction, FloorIndex, SimEventLogEntry } from '../engine';
 import { runTrialBatch } from './trialRunner';
@@ -72,32 +73,32 @@ describe('fairness: same seed sequence -> identical passenger arrivals across al
       seed: 7,
     };
 
-    const results = runTrialBatch(scenario, [fcfs, scanLook]);
+    const results = runTrialBatch(scenario, [directional, scanLook]);
 
     const trialIndex = 1; // an arbitrary "chosen trial index K"
-    const fcfsResult = results.find(
-      (r) => r.algorithmId === fcfs.id && r.trialIndex === trialIndex,
+    const directionalResult = results.find(
+      (r) => r.algorithmId === directional.id && r.trialIndex === trialIndex,
     );
     const scanResult = results.find(
       (r) => r.algorithmId === scanLook.id && r.trialIndex === trialIndex,
     );
-    if (!fcfsResult || !scanResult) {
+    if (!directionalResult || !scanResult) {
       throw new Error('expected a result for both algorithms at the chosen trial index');
     }
 
-    const fcfsCalls = hallCallFacts(fcfsResult.result.log);
+    const directionalCalls = hallCallFacts(directionalResult.result.log);
     const scanCalls = hallCallFacts(scanResult.result.log);
 
     // The observable proof: the actual passenger-arrival facts consumed for trial K were the
     // same regardless of which algorithm ran it.
-    expect(fcfsCalls.length).toBeGreaterThan(0);
-    expect(fcfsCalls).toEqual(scanCalls);
+    expect(directionalCalls.length).toBeGreaterThan(0);
+    expect(directionalCalls).toEqual(scanCalls);
 
     // The two algorithms' subsequent dispatch decisions — and therefore their full logs — are
     // free to diverge from that point on; this isn't itself required for fairness, but confirms
     // the equality above isn't trivially true because both algorithms happened to behave
     // identically on this scenario.
-    expect(fcfsResult.result.log).not.toEqual(scanResult.result.log);
+    expect(directionalResult.result.log).not.toEqual(scanResult.result.log);
   });
 
   it('holds across every trial index in the batch, not just one', () => {
@@ -110,19 +111,21 @@ describe('fairness: same seed sequence -> identical passenger arrivals across al
       seed: 35,
     };
 
-    const results = runTrialBatch(scenario, [fcfs, scanLook]);
+    const results = runTrialBatch(scenario, [directional, scanLook]);
 
     for (let trialIndex = 0; trialIndex < scenario.trialCount; trialIndex++) {
-      const fcfsResult = results.find(
-        (r) => r.algorithmId === fcfs.id && r.trialIndex === trialIndex,
+      const directionalResult = results.find(
+        (r) => r.algorithmId === directional.id && r.trialIndex === trialIndex,
       );
       const scanResult = results.find(
         (r) => r.algorithmId === scanLook.id && r.trialIndex === trialIndex,
       );
-      if (!fcfsResult || !scanResult) {
+      if (!directionalResult || !scanResult) {
         throw new Error(`expected a result for both algorithms at trial ${trialIndex}`);
       }
-      expect(hallCallFacts(fcfsResult.result.log)).toEqual(hallCallFacts(scanResult.result.log));
+      expect(hallCallFacts(directionalResult.result.log)).toEqual(
+        hallCallFacts(scanResult.result.log),
+      );
     }
   });
 });

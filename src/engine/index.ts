@@ -22,3 +22,6 @@ export type {
 } from './types';
 
 export type { DispatchAction, DispatchHook, DispatchSnapshot, ElevatorSnapshot } from './dispatch';
+
+export { createRng } from './rng';
+export type { Rng, Seed } from './rng';

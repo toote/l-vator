@@ -9,13 +9,13 @@ import type {
   PassengerArrival,
 } from '../engine';
 import { runSimulation } from '../engine';
-import { algorithm as baseAlgorithm } from './nearestCarDirectional';
-import { algorithm } from './nearestCarDirectionalHoming';
+import { algorithm as baseAlgorithm } from './zoning';
+import { algorithm } from './zoningHoming';
 
 function buildConfig(overrides: Partial<BuildingConfig> = {}): BuildingConfig {
   return {
     floorCount: 10,
-    elevatorCount: 1,
+    elevatorCount: 2,
     capacity: 4,
     floorTravelTimeMs: 500,
     doorDwellBaseMs: 1000,
@@ -60,12 +60,15 @@ function makeSnapshot(overrides: Partial<DispatchSnapshot> = {}): DispatchSnapsh
   };
 }
 
-describe('nearestCarDirectionalHoming (hook-level)', () => {
+describe('zoningHoming (hook-level)', () => {
   it('starts traveling down once idle for exactly the threshold, when not already at floor 0', () => {
     const hook = algorithm.createHook();
     const elevator = makeElevator({ id: 'E1', currentFloor: 3 });
 
-    hook(makeSnapshot({ time: 0, elevators: [elevator], idleReturnThresholdMs: 5000 }));
+    expect(
+      hook(makeSnapshot({ time: 0, elevators: [elevator], idleReturnThresholdMs: 5000 })),
+    ).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
+
     const actions = hook(
       makeSnapshot({ time: 5000, elevators: [elevator], idleReturnThresholdMs: 5000 }),
     );
@@ -81,64 +84,6 @@ describe('nearestCarDirectionalHoming (hook-level)', () => {
       makeSnapshot({ time: 4999, elevators: [elevator], idleReturnThresholdMs: 5000 }),
     );
     expect(actions).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
-  });
-
-  it('a real assignment before the threshold elapses overrides the idle clock, which restarts cleanly if idle again later', () => {
-    const hook = algorithm.createHook();
-
-    expect(
-      hook(
-        makeSnapshot({
-          time: 0,
-          elevators: [makeElevator({ id: 'E1', currentFloor: 5 })],
-          activeHallCalls: [],
-          idleReturnThresholdMs: 5000,
-        }),
-      ),
-    ).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
-
-    const assigned = hook(
-      makeSnapshot({
-        time: 2000,
-        elevators: [makeElevator({ id: 'E1', currentFloor: 5 })],
-        activeHallCalls: [{ floor: 8, direction: 'up' }],
-        idleReturnThresholdMs: 5000,
-      }),
-    );
-    expect(assigned).toEqual([{ type: 'travel', elevatorId: 'E1', direction: 'up' }]);
-
-    expect(
-      hook(
-        makeSnapshot({
-          time: 10000,
-          elevators: [makeElevator({ id: 'E1', currentFloor: 8 })],
-          activeHallCalls: [],
-          idleReturnThresholdMs: 5000,
-        }),
-      ),
-    ).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
-
-    expect(
-      hook(
-        makeSnapshot({
-          time: 14999,
-          elevators: [makeElevator({ id: 'E1', currentFloor: 8 })],
-          activeHallCalls: [],
-          idleReturnThresholdMs: 5000,
-        }),
-      ),
-    ).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
-
-    expect(
-      hook(
-        makeSnapshot({
-          time: 15000,
-          elevators: [makeElevator({ id: 'E1', currentFloor: 8 })],
-          activeHallCalls: [],
-          idleReturnThresholdMs: 5000,
-        }),
-      ),
-    ).toEqual([{ type: 'travel', elevatorId: 'E1', direction: 'down' }]);
   });
 
   it('stays idle (no pointless travel) when idle too long but already at floor 0', () => {
@@ -172,23 +117,38 @@ describe('nearestCarDirectionalHoming (hook-level)', () => {
     expect(homing).toEqual([{ type: 'travel', elevatorId: 'E1', direction: 'down' }]);
 
     const atHome = makeElevator({ id: 'E1', currentFloor: 0 });
-    const afterArriving = hook(
-      makeSnapshot({ time: 10000, elevators: [atHome], idleReturnThresholdMs: 5000 }),
-    );
-    expect(afterArriving).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
+    expect(
+      hook(makeSnapshot({ time: 10000, elevators: [atHome], idleReturnThresholdMs: 5000 })),
+    ).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
+    expect(
+      hook(makeSnapshot({ time: 500000, elevators: [atHome], idleReturnThresholdMs: 5000 })),
+    ).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
+  });
 
-    const stillHome = hook(
-      makeSnapshot({ time: 500000, elevators: [atHome], idleReturnThresholdMs: 5000 }),
-    );
-    expect(stillHome).toEqual([{ type: 'idle', elevatorId: 'E1' }]);
+  it('a homing (idle, drifting-toward-home) elevator remains a completely ordinary zone-eligible candidate', () => {
+    // Floor 0 is unzoned -- every elevator, homing or not, is always eligible for it.
+    const hook = algorithm.createHook();
+    const snapshot = makeSnapshot({
+      elevators: [makeElevator({ id: 'E1', currentFloor: 5 })],
+      activeHallCalls: [{ floor: 0, direction: 'up' }],
+      idleReturnThresholdMs: 5000,
+    });
+    expect(hook(snapshot)).toEqual([{ type: 'travel', elevatorId: 'E1', direction: 'down' }]);
   });
 });
 
-describe('nearestCarDirectionalHoming (integration: proactive repositioning reduces wait time)', () => {
-  // Identical scenario/shape to fcfsNearestCarHoming.test.ts's own comparative test (see that
-  // file's comment for the full reasoning) -- reused here because nearestCarDirectional's
-  // candidate filter (isCompatible) treats every idle elevator as compatible regardless of
-  // direction, so its behavior on this specific scenario is identical to FCFS's.
+describe('zoningHoming (integration: proactive repositioning reduces wait time)', () => {
+  // Mirrors nearestCarDirectionalHoming.test.ts's own comparative scenario shape exactly --
+  // including WHY it needs a second elevator/setup, not just one: the dispatch hook only runs at
+  // discrete engine events (arrivals, doors closing), never on a periodic timer, so an idle
+  // elevator's homing clock only gets checked again whenever SOME event re-invokes the hook.
+  // With only one elevator and one setup, nothing re-invokes the hook between E1 going idle and
+  // the real demand arriving, so homing never gets a chance to fire early -- it would only
+  // "catch up" at the exact moment the real call already needs a response, making the two
+  // algorithms indistinguishable. The second elevator's own journey (setup2) supplies that
+  // extra trigger, giving E1's homing clock a chance to fire well before 'trap' registers.
+  // Both origins are floor 0 (unzoned/universal), so zoning's own eligibility rule doesn't
+  // interfere with which elevator picks up which setup.
   function scenario() {
     const config = buildConfig({
       floorCount: 10,
@@ -216,19 +176,19 @@ describe('nearestCarDirectionalHoming (integration: proactive repositioning redu
 
     const baseTrapBoard = baseResult.log.find(
       (e) => e.type === 'passengerBoarded' && e.passengerId === 'trap',
-    );
+    )!;
     const homingTrapBoard = homingResult.log.find(
       (e) => e.type === 'passengerBoarded' && e.passengerId === 'trap',
-    );
-    expect(baseTrapBoard).toBeDefined();
-    expect(homingTrapBoard).toBeDefined();
+    )!;
 
-    const TRAP_ARRIVAL_TIME = 5000;
-    const baseWaitMs = baseTrapBoard!.time - TRAP_ARRIVAL_TIME;
-    const homingWaitMs = homingTrapBoard!.time - TRAP_ARRIVAL_TIME;
+    expect(homingTrapBoard.time).toBeLessThan(baseTrapBoard.time);
+  });
+});
 
-    expect(baseWaitMs).toBeGreaterThan(500);
-    expect(homingWaitMs).toBeLessThan(300);
-    expect(homingWaitMs).toBeLessThan(baseWaitMs);
+describe('algorithms discovery shape', () => {
+  it('exposes a valid Algorithm entry', () => {
+    expect(algorithm.id).toBe('zoning-homing');
+    expect(algorithm.description.length).toBeGreaterThan(0);
+    expect(typeof algorithm.createHook()).toBe('function');
   });
 });

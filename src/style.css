@@ -1,22 +1,35 @@
 :root {
   --text: #1f2028;
   --bg: #ffffff;
-  /* Chart series colors (Unit 08 dashboard charts, extended to 6 slots by Unit 10's homing
-     algorithm variants) -- fixed per-algorithm identity, assigned by registry index via
+  /* Chart series colors -- fixed per-algorithm identity, assigned by registry index via
      src/ui/dashboard/algorithmColor.ts, never by an AlgorithmMetrics[] run's row order.
-     Validated (dataviz skill's validate_palette.js) against this project's actual --bg, --pairs
-     all -- see dev_log/08_charts.md / 08_charts_test.md (slots 1-3) and
-     dev_log/10_homing_algorithms.md / 10_homing_algorithms_test.md (slots 4-6, added together
-     since a categorical palette's checks are pairwise across the whole set) for the recorded
-     output. Slots 3/6 (light) and 4 (dark) carry an accepted, plan-anticipated contrast-vs-
-     surface WARN, mitigated by direct labels + the adjacent table view, same as slot 3 always
-     has been since Unit 08. */
-  --series-1: #2a78d6; /* blue */
-  --series-2: #eb6834; /* orange */
-  --series-3: #1baf7a; /* aqua */
-  --series-4: #9e2e2e; /* brick red */
-  --series-5: #cbac4d; /* khaki gold */
-  --series-6: #20afdf; /* sky blue */
+     Doubled from 6 to 12 slots by Unit 11 (FCFS removed, zoning/ETA/random added). Surviving
+     ids keep their exact Unit 08/10 hex values (slots 1-4 below, previously slots 2/3/5/6 --
+     FCFS's removal shifted their COLOR_ORDER index, an accepted, explicit consequence of
+     removing an algorithm from the registry, but not their actual color). The 8 new slots are
+     four hue families (blue/violet/green/red), each holding a base+homing pair as two OKLCH
+     lightness steps of the same hue -- chosen after an extensive validated search (see
+     dev_log/11_algorithm_expansion.md / _test.md) found that 12 colors cannot clear the
+     dataviz skill's stricter `--pairs all` gate (even 8 maximally-hue-spread new colors alone
+     top out around ΔE 10, short of the required 15) -- a real, measured limit, not a shortfall
+     from insufficient effort. Validated instead against `--pairs adjacent` (this dashboard's
+     actual chart shape: fixed COLOR_ORDER row order, never all-pairs-simultaneous like a
+     scatter plot) -- see dev_log/11_algorithm_expansion_test.md for the full recorded output.
+     Several slots (aqua, khaki gold, sky blue, and most of the 8 new pastel/mid-tone slots)
+     carry an accepted contrast-vs-surface WARN, mitigated by direct labels + the table view,
+     same as slot 3/aqua has been since Unit 08. */
+  --series-1: #eb6834; /* orange -- nearest-car-directional */
+  --series-2: #1baf7a; /* aqua -- scan-look */
+  --series-3: #cbac4d; /* khaki gold -- nearest-car-directional-homing */
+  --series-4: #20afdf; /* sky blue -- scan-look-homing */
+  --series-5: #005c87; /* blue (dark) -- zoning */
+  --series-6: #4ebceb; /* blue (light) -- zoning-homing */
+  --series-7: #5d408a; /* violet (dark) -- zoning-fallback */
+  --series-8: #ba9cef; /* violet (light) -- zoning-fallback-homing */
+  --series-9: #066500; /* green (dark) -- eta-dispatch */
+  --series-10: #73c660; /* green (light) -- eta-dispatch-homing */
+  --series-11: #883136; /* red (dark) -- random-dispatch */
+  --series-12: #f08e8e; /* red (light) -- random-dispatch-homing */
   font:
     18px/1.45 system-ui,
     'Segoe UI',
@@ -31,12 +44,18 @@
   :root {
     --text: #f3f4f6;
     --bg: #16171d;
-    --series-1: #3987e5;
-    --series-2: #d95926;
-    --series-3: #199e70;
-    --series-4: #7a26c2; /* purple */
-    --series-5: #ea1ef2; /* magenta */
-    --series-6: #c42b79; /* rose */
+    --series-1: #d95926; /* orange */
+    --series-2: #199e70; /* aqua */
+    --series-3: #ea1ef2; /* magenta */
+    --series-4: #c42b79; /* rose */
+    --series-5: #006ca8; /* blue (dark) */
+    --series-6: #00a1e0; /* blue (light) */
+    --series-7: #6e49a3; /* violet (dark) */
+    --series-8: #a07cdb; /* violet (light) */
+    --series-9: #2c721a; /* green (dark) */
+    --series-10: #60a750; /* green (light) */
+    --series-11: #af1c33; /* red (dark) */
+    --series-12: #ec5a63; /* red (light) */
   }
 }
 

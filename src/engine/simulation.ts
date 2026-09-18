@@ -147,6 +147,8 @@ export function runSimulation(
       activeHallCalls: getActiveHallCalls(state.waitingPassengers),
       idleReturnThresholdMs: config.idleReturnThresholdMs,
       floorTravelTimeMs: config.floorTravelTimeMs,
+      doorDwellBaseMs: config.doorDwellBaseMs,
+      floorCount: config.floorCount,
     };
   }
 

@@ -22,6 +22,8 @@ function makeSnapshot(overrides: Partial<DispatchSnapshot> = {}): DispatchSnapsh
     activeHallCalls: [],
     idleReturnThresholdMs: 30000,
     floorTravelTimeMs: 1000,
+    doorDwellBaseMs: 1000,
+    floorCount: 10,
     ...overrides,
   };
 }

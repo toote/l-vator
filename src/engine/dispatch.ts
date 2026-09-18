@@ -33,9 +33,19 @@ export interface DispatchSnapshot {
   idleReturnThresholdMs: number;
   /** Mirrors `BuildingConfig.floorTravelTimeMs`. Lets an algorithm reason about realistic timing
    * (e.g. "how long is too long for an assignment to sit unvisited") without hardcoding a
-   * building-specific assumption — see fcfsNearestCar.ts's/nearestCarDirectional.ts's assignment
-   * release-timeout logic for the motivating case. */
+   * building-specific assumption — see nearestCarDirectional.ts's assignment release-timeout
+   * logic for the motivating case. */
   floorTravelTimeMs: number;
+  /** Mirrors `BuildingConfig.doorDwellBaseMs`. Added in Unit 11 for etaDispatch.ts's arrival-time
+   * estimate, which needs to account for intermediate-stop dwell time, not just travel time. */
+  doorDwellBaseMs: number;
+  /** Mirrors `BuildingConfig.floorCount`. Added in Unit 11 (a plan gap discovered during
+   * implementation — see dev_log/11_algorithm_expansion.md's "Deviations from Plan"): zoning.ts
+   * needs to know the building's full floor range to divide it into per-elevator zones, and
+   * nothing on the pre-existing snapshot shape could derive that (elevators only ever report
+   * their own current floor, and a floor with no calls yet gives no signal at all). Every other
+   * algorithm ignores it, same as they already ignore fields meant for one specific family. */
+  floorCount: number;
 }
 
 export type DispatchAction =
