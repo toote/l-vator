@@ -309,7 +309,7 @@ describe('computeReplayFrame: elevator status (idle / doors open / traveling)', 
     expect(computeReplayFrame(grouped, 7999).elevators[0].status).toEqual({ type: 'idle' });
   });
 
-  it('is traveling toward the next arrival’s floor during the real travel window', () => {
+  it('is traveling toward its (here, single-floor-away) destination during the real travel window', () => {
     expect(computeReplayFrame(grouped, 8000).elevators[0].status).toEqual({
       type: 'traveling',
       targetFloor: 3,
@@ -327,5 +327,44 @@ describe('computeReplayFrame: elevator status (idle / doors open / traveling)', 
   it('is idle again after the last arrival, with nothing more scheduled', () => {
     expect(computeReplayFrame(grouped, 9000).elevators[0].status).toEqual({ type: 'idle' });
     expect(computeReplayFrame(grouped, 99999).elevators[0].status).toEqual({ type: 'idle' });
+  });
+});
+
+describe('computeReplayFrame: elevator status -- traveling target is the real destination, not the next pass-through floor', () => {
+  // Developer-reported regression: the target floor shown while traveling changed on every single
+  // floor crossed (e.g. "-> Floor 5" while merely sweeping past floor 5 on the way to a real stop
+  // at floor 7), because `elevatorArrived` fires for every floor passed through, stop or not --
+  // using the next arrival's floor is only ever the immediately adjacent one, never the actual
+  // destination. E1 sweeps floor 4 -> 5 -> 6 -> 7 with a real stop only at floor 7
+  // (floorTravelTimeMs = 1000): the target must read 7 throughout the whole sweep, not 5 then 6
+  // then 7 as each pass-through floor is reached.
+  const log: SimEventLogEntry[] = [
+    { type: 'elevatorArrived', time: 1000, elevatorId: 'E1', floor: 4 },
+    { type: 'elevatorArrived', time: 2000, elevatorId: 'E1', floor: 5 },
+    { type: 'elevatorArrived', time: 3000, elevatorId: 'E1', floor: 6 },
+    { type: 'elevatorArrived', time: 4000, elevatorId: 'E1', floor: 7 },
+    { type: 'doorsOpened', time: 4000, elevatorId: 'E1', floor: 7 },
+    { type: 'passengerAlighted', time: 4000, elevatorId: 'E1', floor: 7, passengerId: 'p1' },
+    { type: 'doorsClosed', time: 4500, elevatorId: 'E1', floor: 7 },
+  ];
+  const grouped = groupReplayLog(log, ['E1'], 1000);
+
+  it('reports the real destination (floor 7) throughout every pass-through leg of the sweep', () => {
+    expect(computeReplayFrame(grouped, 1500).elevators[0].status).toEqual({
+      type: 'traveling',
+      targetFloor: 7, // NOT 5, the next elevatorArrived's floor
+    });
+    expect(computeReplayFrame(grouped, 2500).elevators[0].status).toEqual({
+      type: 'traveling',
+      targetFloor: 7, // NOT 6
+    });
+    expect(computeReplayFrame(grouped, 3500).elevators[0].status).toEqual({
+      type: 'traveling',
+      targetFloor: 7,
+    });
+  });
+
+  it('switches to doorsOpen, not traveling, once it actually arrives and stops at the real destination', () => {
+    expect(computeReplayFrame(grouped, 4000).elevators[0].status).toEqual({ type: 'doorsOpen' });
   });
 });

@@ -279,7 +279,18 @@ function hallCallActiveAtTime(group: HallCallLogGroup, time: number): boolean {
  * arrival/door data `positionAtTime` and `doorsOpenAtTime` already reconstruct from, reusing
  * `positionAtTime`'s phase boundaries (see its doc comment): `[a.time or dwellClose, travelStart)`
  * is stationary (dwelling with doors open, or idle/unassigned -- doorsOpenAtTime distinguishes
- * which), `[travelStart, b.time)` is actively traveling toward `b.floor`.
+ * which), `[travelStart, b.time)` is actively traveling.
+ *
+ * While traveling, `targetFloor` is NOT simply `b.floor` (the next `elevatorArrived` entry) --
+ * `elevatorArrived` fires for every floor passed through, stop or not, so `b` is only ever the
+ * immediately adjacent floor, not where the elevator is actually headed (developer-reported: this
+ * showed e.g. "-> Floor 4" while sweeping past floor 4 on the way to a real stop at floor 7,
+ * changing every single floor rather than naming the actual destination). The real destination is
+ * the floor of the NEXT `doorsOpened` event at or after `time` -- i.e. the next floor this
+ * elevator will actually stop and open its doors at, however many pass-through floors away that
+ * is -- falling back to `b.floor` only if no further stop is recorded at all (e.g. a homing
+ * elevator's final approach to floor 0, which never "stops"/opens doors there, just arrives and
+ * goes idle).
  */
 function statusAtTime(
   group: ElevatorLogGroups,
@@ -288,7 +299,7 @@ function statusAtTime(
 ): ElevatorStatus {
   if (doorsOpenAtTime(group, time)) return { type: 'doorsOpen' };
 
-  const { arrivals } = group;
+  const { arrivals, doorsOpened } = group;
   const arrivalIndex = countAtOrBefore(arrivals, time) - 1;
   if (arrivalIndex < 0) return { type: 'idle' }; // hasn't done anything yet
   if (arrivalIndex === arrivals.length - 1) return { type: 'idle' }; // nothing more happens
@@ -297,7 +308,10 @@ function statusAtTime(
   const travelStart = b.time - floorTravelTimeMs;
   if (time < travelStart) return { type: 'idle' }; // doors already closed here (or never opened),
   // not yet actually moving -- dwelling-with-doors-open was already handled above.
-  return { type: 'traveling', targetFloor: b.floor };
+
+  const nextStopIndex = countStrictlyBefore(doorsOpened, time);
+  const nextStop = nextStopIndex < doorsOpened.length ? doorsOpened[nextStopIndex] : undefined;
+  return { type: 'traveling', targetFloor: nextStop ? nextStop.floor : b.floor };
 }
 
 /** Computes every elevator's and every hall call's displayed state at simulated time T. Pure --
