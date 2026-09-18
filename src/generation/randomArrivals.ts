@@ -10,6 +10,8 @@
 //   pattern      generating floors        destination
 //   up-peak      [0] only                 uniform random in 1..floorCount
 //   down-peak    1..floorCount            always 0
+//   lunch-peak   0..floorCount (all)      floor 0: uniform random in 1..floorCount (up-peak's
+//                                         rule); every other floor: always 0 (down-peak's rule)
 //   random       0..floorCount (all)      uniform random over all floors except origin
 //
 // `direction` is always derived, never separately stored/drawn: destinationFloor > originFloor
@@ -35,6 +37,8 @@ export function generatingFloors(pattern: ArrivalPattern, floorCount: number): F
   if (pattern === 'down-peak') {
     return Array.from({ length: floorCount }, (_, index) => index + 1);
   }
+  // lunch-peak and random both generate from every floor — they differ only in how a generated
+  // event's destination is picked (see this file's header comment and generateRandomArrivals).
   return Array.from({ length: floorCount + 1 }, (_, index) => index);
 }
 
@@ -58,6 +62,28 @@ function uniformFloorExcluding(
   const span = max - min; // one fewer than the full [min, max] span, since exclude is removed
   const draw = min + Math.floor(rng.next() * span);
   return draw >= exclude ? draw + 1 : draw;
+}
+
+/**
+ * The destination for one generated arrival, per `pattern`'s rule (see this file's header
+ * comment). Factored out of `generateRandomArrivals`'s Pass 2 loop now that `lunch-peak` makes
+ * the rule origin-dependent, not just pattern-dependent — down-peak's and up-peak's own branches
+ * are unchanged, just relocated here.
+ */
+function destinationFor(
+  rng: Rng,
+  pattern: ArrivalPattern,
+  floorCount: number,
+  event: TimedEvent,
+): FloorIndex {
+  if (pattern === 'down-peak') return 0;
+  if (pattern === 'up-peak') return uniformFloor(rng, 1, floorCount);
+  if (pattern === 'lunch-peak') {
+    // Floor 0 follows up-peak's rule (destination anywhere else); every other floor follows
+    // down-peak's rule (destination always 0) — see this file's header comment.
+    return event.originFloor === 0 ? uniformFloor(rng, 1, floorCount) : 0;
+  }
+  return uniformFloorExcluding(rng, 0, floorCount, event.originFloor);
 }
 
 /** Validates rates up front, before any generation — a negative rate is a config bug, not a
@@ -117,12 +143,7 @@ export function generateRandomArrivals(
   // — pinned explicitly because it determines exactly which rng.next() call produces which
   // destination, which affects the exact byte-for-byte output for a given seed.
   return events.map((event, index) => {
-    const destinationFloor =
-      params.pattern === 'down-peak'
-        ? 0
-        : params.pattern === 'up-peak'
-          ? uniformFloor(rng, 1, building.floorCount)
-          : uniformFloorExcluding(rng, 0, building.floorCount, event.originFloor);
+    const destinationFloor = destinationFor(rng, params.pattern, building.floorCount, event);
     const direction: Direction = destinationFloor > event.originFloor ? 'up' : 'down';
     return {
       id: `arrival-${index}`,

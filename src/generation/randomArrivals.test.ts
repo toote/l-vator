@@ -64,6 +64,33 @@ describe('generateRandomArrivals', () => {
     expect(destinations.size).toBeGreaterThan(1);
   });
 
+  it('lunch-peak: floor 0 behaves like up-peak (nonzero destination), every other floor behaves like down-peak (destination 0)', () => {
+    const params: RandomArrivalParams = { baseRatePerMinute: 20, pattern: 'lunch-peak' };
+    const arrivals = generateRandomArrivals(building, params, 300000, 3);
+    expect(arrivals.length).toBeGreaterThan(20);
+
+    const floor0Arrivals = arrivals.filter((a) => a.originFloor === 0);
+    const otherFloorArrivals = arrivals.filter((a) => a.originFloor !== 0);
+    // Structural spread check: with all floors generating over a long run, both groups should be
+    // nonempty -- otherwise this test wouldn't actually be exercising both of lunch-peak's rules.
+    expect(floor0Arrivals.length).toBeGreaterThan(0);
+    expect(otherFloorArrivals.length).toBeGreaterThan(0);
+
+    for (const arrival of floor0Arrivals) {
+      expect(arrival.destinationFloor).not.toBe(0);
+      expect(arrival.direction).toBe('up');
+    }
+    for (const arrival of otherFloorArrivals) {
+      expect(arrival.destinationFloor).toBe(0);
+      expect(arrival.direction).toBe('down');
+    }
+
+    // Origins spread across more than just floor 0 -- confirms lunch-peak generates from every
+    // floor (like random), not just floor 0 (like up-peak).
+    const origins = new Set(arrivals.map((a) => a.originFloor));
+    expect(origins.size).toBeGreaterThan(1);
+  });
+
   it('rate/duration correctness: generated count tracks rate * duration within a statistical tolerance, averaged over many seeds', () => {
     const durationMs = 600000; // 10 minutes
     const ratePerMinute = 6;
@@ -158,6 +185,21 @@ describe('generateRandomArrivals', () => {
       floorRates: { 3: -2 },
     };
     expect(() => generateRandomArrivals(building, params, 60000, 1)).toThrow(/floorRates\[3\]/);
+  });
+
+  it('lunch-peak: a floorRates override on a non-zero floor takes effect, since (unlike up-peak) every floor generates', () => {
+    // Zero out the base rate entirely, then give ONLY floor 3 a real rate -- every arrival must
+    // originate there (or nowhere, if the override were incorrectly ignored).
+    const params: RandomArrivalParams = {
+      baseRatePerMinute: 0,
+      pattern: 'lunch-peak',
+      floorRates: { 3: 30 },
+    };
+    const arrivals = generateRandomArrivals(building, params, 120000, 1);
+    expect(arrivals.length).toBeGreaterThan(0);
+    expect(arrivals.every((a) => a.originFloor === 3)).toBe(true);
+    // Still follows lunch-peak's destination rule for a non-zero origin floor: always 0.
+    expect(arrivals.every((a) => a.destinationFloor === 0 && a.direction === 'down')).toBe(true);
   });
 
   it('a floorRates override on a floor the pattern does not generate from is a silent no-op (no error, zero arrivals from it)', () => {

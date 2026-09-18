@@ -44,9 +44,9 @@ export function validate(state: AppState): string | null {
   }
 
   // Correction (developer review): floorCount: 0 reaches Unit 04's random generator and
-  // deterministically returns an out-of-bounds floor under up-peak/random, crashing mid-run with
-  // a cryptic bounds-check error instead of a clear validation message. Fixed here, at the UI
-  // layer -- not by touching Unit 04 -- alongside the input's HTML min="1".
+  // deterministically returns an out-of-bounds floor under up-peak/lunch-peak/random, crashing
+  // mid-run with a cryptic bounds-check error instead of a clear validation message. Fixed here,
+  // at the UI layer -- not by touching Unit 04 -- alongside the input's HTML min="1".
   if (building.floorCount < 1) {
     return 'Floors (above ground) must be at least 1.';
   }

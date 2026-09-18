@@ -54,7 +54,7 @@ function numberField(
 
 function renderPatternSelect(state: AppState, render: () => void): HTMLDivElement {
   const select = document.createElement('select');
-  const patterns: ArrivalPattern[] = ['up-peak', 'down-peak', 'random'];
+  const patterns: ArrivalPattern[] = ['up-peak', 'down-peak', 'lunch-peak', 'random'];
   for (const pattern of patterns) {
     const option = document.createElement('option');
     option.value = pattern;
