@@ -5,7 +5,7 @@
 // dark mode keeps working.
 
 import type { BuildingConfig, Direction, FloorIndex } from '../../engine';
-import type { ReplayFrame } from './replayFrame';
+import type { ElevatorStatus, ReplayFrame } from './replayFrame';
 import type { WaitingCountFrame } from './waitingCounts';
 
 const ROW_HEIGHT_PX = 40;
@@ -24,6 +24,18 @@ function hallCallKey(floor: FloorIndex, direction: Direction): string {
 
 function glyphFor(direction: Direction): string {
   return direction === 'up' ? '▲' : '▼';
+}
+
+/** Text for the status label shown above each elevator -- see replayFrame.ts's ElevatorStatus. */
+function statusLabel(status: ElevatorStatus): string {
+  switch (status.type) {
+    case 'idle':
+      return 'Idle';
+    case 'doorsOpen':
+      return 'Doors open';
+    case 'traveling':
+      return `→ Floor ${status.targetFloor}`;
+  }
 }
 
 export function renderCrossSection(
@@ -149,10 +161,23 @@ export function renderCrossSection(
   shaftsWrapper.style.gap = '0.6rem';
 
   const cars = new Map<string, HTMLElement>();
+  const statusLabels = new Map<string, HTMLElement>();
   const shaftHeight = floors.length * ROW_HEIGHT_PX;
 
   for (const elevatorId of elevatorIds) {
     const column = document.createElement('div');
+
+    const status = document.createElement('div');
+    status.textContent = statusLabel({ type: 'idle' }); // placeholder -- update() sets the real value
+    status.style.width = `${SHAFT_WIDTH_PX}px`;
+    status.style.textAlign = 'center';
+    status.style.fontSize = '0.65rem';
+    // Reserves space for a two-line status (e.g. "→ Floor 12") so a shorter one (e.g. "Idle")
+    // doesn't shrink the row and shift the shaft below it -- same layout-stability reasoning as
+    // the replay's waiting-count badges (see dev_log/09_waiting_counts_done.md's amendment).
+    status.style.minHeight = '1.6em';
+    status.style.marginBottom = '0.2rem';
+    statusLabels.set(elevatorId, status);
 
     const shaft = document.createElement('div');
     shaft.style.position = 'relative';
@@ -172,6 +197,7 @@ export function renderCrossSection(
     idLabel.style.textAlign = 'center';
     idLabel.style.fontSize = '0.75rem';
 
+    column.appendChild(status);
     column.appendChild(shaft);
     column.appendChild(idLabel);
     shaftsWrapper.appendChild(column);
@@ -187,6 +213,9 @@ export function renderCrossSection(
       // transitions" note: a transition would fight scrub jumps and can't track variable speed.
       car.classList.toggle('doors-open', elevatorFrame.doorsOpen);
       car.textContent = `${elevatorFrame.onboardCount}/${building.capacity}`;
+
+      const status = statusLabels.get(elevatorFrame.elevatorId);
+      if (status) status.textContent = statusLabel(elevatorFrame.status);
     }
 
     const activeKeys = new Set(

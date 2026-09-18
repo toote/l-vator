@@ -11,12 +11,24 @@
 
 import type { Direction, FloorIndex, SimEventLogEntry } from '../../engine';
 
+/**
+ * What an elevator is doing at a given simulated time, for display purposes -- distinct from
+ * `doorsOpen`/`position` alone, which don't by themselves distinguish "idle, nothing to do" from
+ * "idle, dwelling with doors open" from "actively traveling toward a specific floor". Reconstructed
+ * from the same arrival/door log data `positionAtTime` uses, not a new engine concept: the
+ * simulation's event log has no explicit "elevator became idle" event (see `statusAtTime`'s doc
+ * comment for how this is inferred).
+ */
+export type ElevatorStatus =
+  { type: 'idle' } | { type: 'doorsOpen' } | { type: 'traveling'; targetFloor: FloorIndex };
+
 export interface ElevatorReplayFrame {
   elevatorId: string;
   /** Interpolated floor position -- fractional while moving between two floors. */
   position: number;
   doorsOpen: boolean;
   onboardCount: number;
+  status: ElevatorStatus;
 }
 
 export interface HallCallReplayState {
@@ -260,6 +272,34 @@ function hallCallActiveAtTime(group: HallCallLogGroup, time: number): boolean {
   return countAtOrBefore(group.registered, time) > countAtOrBefore(group.cleared, time);
 }
 
+/**
+ * Developer-requested: show each elevator's status (idle / doors open / traveling to floor X)
+ * above it in the replay. The simulation's event log has no explicit "elevator became idle" or
+ * "elevator started traveling" event to read this off directly -- it's inferred from the same
+ * arrival/door data `positionAtTime` and `doorsOpenAtTime` already reconstruct from, reusing
+ * `positionAtTime`'s phase boundaries (see its doc comment): `[a.time or dwellClose, travelStart)`
+ * is stationary (dwelling with doors open, or idle/unassigned -- doorsOpenAtTime distinguishes
+ * which), `[travelStart, b.time)` is actively traveling toward `b.floor`.
+ */
+function statusAtTime(
+  group: ElevatorLogGroups,
+  time: number,
+  floorTravelTimeMs: number,
+): ElevatorStatus {
+  if (doorsOpenAtTime(group, time)) return { type: 'doorsOpen' };
+
+  const { arrivals } = group;
+  const arrivalIndex = countAtOrBefore(arrivals, time) - 1;
+  if (arrivalIndex < 0) return { type: 'idle' }; // hasn't done anything yet
+  if (arrivalIndex === arrivals.length - 1) return { type: 'idle' }; // nothing more happens
+
+  const b = arrivals[arrivalIndex + 1];
+  const travelStart = b.time - floorTravelTimeMs;
+  if (time < travelStart) return { type: 'idle' }; // doors already closed here (or never opened),
+  // not yet actually moving -- dwelling-with-doors-open was already handled above.
+  return { type: 'traveling', targetFloor: b.floor };
+}
+
 /** Computes every elevator's and every hall call's displayed state at simulated time T. Pure --
  * the exact same function drives both normal playback (many small time steps) and scrubbing (one
  * large jump), so both are equally exact and drift-free. */
@@ -271,6 +311,7 @@ export function computeReplayFrame(grouped: GroupedLog, time: number): ReplayFra
       position: positionAtTime(group, time, grouped.floorTravelTimeMs),
       doorsOpen: doorsOpenAtTime(group, time),
       onboardCount: onboardCountAtTime(group, time),
+      status: statusAtTime(group, time, grouped.floorTravelTimeMs),
     })),
     activeHallCalls: grouped.hallCalls
       .filter((group) => hallCallActiveAtTime(group, time))

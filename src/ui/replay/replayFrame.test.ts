@@ -273,3 +273,59 @@ describe('computeReplayFrame: active hall calls', () => {
     expect(frame.activeHallCalls).toEqual([{ floor: 4, direction: 'down' }]);
   });
 });
+
+describe('computeReplayFrame: elevator status (idle / doors open / traveling)', () => {
+  // Developer-requested: show each elevator's status above it in the replay. One scenario
+  // exercising all four phases in sequence, floorTravelTimeMs = 1000:
+  //   [0, 2000)     before the first arrival -- idle (hasn't done anything yet)
+  //   [2000, 5000)  a real stop: doorsOpened@2000, doorsClosed@5000 (dwell 3000ms) -- doors open
+  //   [5000, 8000)  doors closed but not yet dispatched again -- idle (the "idle-then-recalled"
+  //                 case -- see replayFrame.ts's "Idle-then-recalled" position regression above)
+  //   [8000, 9000)  actually traveling toward floor 3 (travelStart = 9000 - 1000 = 8000)
+  //   [9000, ∞)     after the last arrival -- idle again
+  const log: SimEventLogEntry[] = [
+    { type: 'elevatorArrived', time: 2000, elevatorId: 'E1', floor: 2 },
+    { type: 'doorsOpened', time: 2000, elevatorId: 'E1', floor: 2 },
+    { type: 'passengerBoarded', time: 2000, elevatorId: 'E1', floor: 2, passengerId: 'p1' },
+    { type: 'doorsClosed', time: 5000, elevatorId: 'E1', floor: 2 },
+    { type: 'elevatorArrived', time: 9000, elevatorId: 'E1', floor: 3 },
+  ];
+  const grouped = groupReplayLog(log, ['E1'], 1000);
+
+  it('is idle before the elevator has ever arrived anywhere', () => {
+    expect(computeReplayFrame(grouped, 0).elevators[0].status).toEqual({ type: 'idle' });
+    expect(computeReplayFrame(grouped, 1999).elevators[0].status).toEqual({ type: 'idle' });
+  });
+
+  it('is doorsOpen for the entire real dwell window', () => {
+    expect(computeReplayFrame(grouped, 2000).elevators[0].status).toEqual({ type: 'doorsOpen' });
+    expect(computeReplayFrame(grouped, 3500).elevators[0].status).toEqual({ type: 'doorsOpen' });
+    expect(computeReplayFrame(grouped, 4999).elevators[0].status).toEqual({ type: 'doorsOpen' });
+  });
+
+  it('is idle (not doorsOpen, not traveling) once doors close but before real travel starts', () => {
+    expect(computeReplayFrame(grouped, 5000).elevators[0].status).toEqual({ type: 'idle' });
+    expect(computeReplayFrame(grouped, 6500).elevators[0].status).toEqual({ type: 'idle' });
+    expect(computeReplayFrame(grouped, 7999).elevators[0].status).toEqual({ type: 'idle' });
+  });
+
+  it('is traveling toward the next arrival’s floor during the real travel window', () => {
+    expect(computeReplayFrame(grouped, 8000).elevators[0].status).toEqual({
+      type: 'traveling',
+      targetFloor: 3,
+    });
+    expect(computeReplayFrame(grouped, 8500).elevators[0].status).toEqual({
+      type: 'traveling',
+      targetFloor: 3,
+    });
+    expect(computeReplayFrame(grouped, 8999).elevators[0].status).toEqual({
+      type: 'traveling',
+      targetFloor: 3,
+    });
+  });
+
+  it('is idle again after the last arrival, with nothing more scheduled', () => {
+    expect(computeReplayFrame(grouped, 9000).elevators[0].status).toEqual({ type: 'idle' });
+    expect(computeReplayFrame(grouped, 99999).elevators[0].status).toEqual({ type: 'idle' });
+  });
+});
