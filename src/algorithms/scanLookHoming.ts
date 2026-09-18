@@ -149,6 +149,11 @@ function decide(
 export const algorithm: Algorithm = {
   id: 'scan-look-homing',
   name: 'SCAN / LOOK (Returns to Lobby)',
+  description:
+    'The SCAN / LOOK strategy, plus one addition: an elevator that sits idle longer than the ' +
+    'configured idle return threshold heads back to floor 0 on its own, instead of waiting ' +
+    'wherever its sweep last ended — keeps the fleet positioned closer to where demand usually ' +
+    'originates, so a returning car does not have to be summoned from wherever it last stopped.',
   createHook: (): DispatchHook => {
     const idleSince = new Map<string, number>();
     return (snapshot: DispatchSnapshot): DispatchAction[] =>

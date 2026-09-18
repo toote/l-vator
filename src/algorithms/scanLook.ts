@@ -113,6 +113,11 @@ function decide(snapshot: DispatchSnapshot, elevator: ElevatorSnapshot): Dispatc
 export const algorithm: Algorithm = {
   id: 'scan-look',
   name: 'SCAN / LOOK',
+  description:
+    'No central dispatch and no per-call assignment: each elevator independently sweeps in one ' +
+    'direction, stopping for anyone in its path, and reverses only once nothing remains ahead ' +
+    'of it (not necessarily the top or bottom of the building) — classic elevator-bank ' +
+    'behavior. Whichever car happens to be sweeping past a floor serves it.',
   createHook: (): DispatchHook => {
     return (snapshot: DispatchSnapshot): DispatchAction[] =>
       snapshot.elevators.map((elevator) => decide(snapshot, elevator));

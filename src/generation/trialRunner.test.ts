@@ -27,7 +27,7 @@ interface SpyAlgorithm {
 function makeSpyAlgorithm(id: string): SpyAlgorithm {
   const createHookSpy = vi.fn(() => makeNoOpHook());
   return {
-    algorithm: { id, name: id, createHook: createHookSpy },
+    algorithm: { id, name: id, description: id, createHook: createHookSpy },
     createHookSpy,
   };
 }

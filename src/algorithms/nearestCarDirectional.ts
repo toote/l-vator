@@ -174,6 +174,12 @@ function decide(elevator: ElevatorSnapshot, assignments: Map<string, Assignment>
 export const algorithm: Algorithm = {
   id: 'nearest-car-directional',
   name: 'Nearest Car (Directional)',
+  description:
+    'Like FCFS/Nearest Car, but stricter about direction: any elevator that is not genuinely ' +
+    'idle — including one that is empty but already committed to an earlier pickup — is only a ' +
+    'candidate if it is heading toward the call and has not passed it yet. Avoids the wasted ' +
+    'detours FCFS can make, sometimes at the cost of leaving a call waiting slightly longer for ' +
+    'a compatible car to become available.',
   createHook: (): DispatchHook => {
     const assignments = new Map<string, Assignment>();
     return (snapshot: DispatchSnapshot): DispatchAction[] => {

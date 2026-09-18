@@ -192,6 +192,8 @@ describe('algorithms discovery (index.ts)', () => {
       expect(typeof entry.id).toBe('string');
       expect(entry.id.length).toBeGreaterThan(0);
       expect(typeof entry.name).toBe('string');
+      expect(typeof entry.description).toBe('string');
+      expect(entry.description.length).toBeGreaterThan(0);
       expect(typeof entry.createHook).toBe('function');
       // Every factory actually produces a callable hook, proving these are real algorithm
       // modules (types.ts/shared.ts export no such shape and would have failed this).

@@ -204,6 +204,12 @@ function decide(
 export const algorithm: Algorithm = {
   id: 'fcfs-nearest-car-homing',
   name: 'FCFS / Nearest Car (Returns to Lobby)',
+  description:
+    'The FCFS / Nearest Car strategy, plus one addition: an elevator that sits idle longer than ' +
+    'the configured idle return threshold heads back to floor 0 on its own, instead of waiting ' +
+    'wherever it last happened to stop — keeps the fleet positioned closer to where demand ' +
+    'usually originates, so a returning car does not have to be summoned from wherever its ' +
+    'last drop-off left it.',
   createHook: (): DispatchHook => {
     const assignments = new Map<string, Assignment>();
     const idleSince = new Map<string, number>();

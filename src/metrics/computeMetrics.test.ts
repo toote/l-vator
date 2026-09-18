@@ -17,11 +17,13 @@ import { computeTrialMetrics } from './trialMetrics';
 function makeTestAlgorithm(id: string): {
   id: string;
   name: string;
+  description: string;
   createHook: () => DispatchHook;
 } {
   return {
     id,
     name: id,
+    description: id,
     createHook: (): DispatchHook => {
       const hook: DispatchHook = (snapshot: DispatchSnapshot): DispatchAction[] => {
         const elevator = snapshot.elevators[0];

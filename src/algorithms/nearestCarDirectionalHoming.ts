@@ -188,6 +188,12 @@ export const algorithm: Algorithm = {
   // Directional". Followed the stated rule over the table's apparently-mistyped string; flagged in
   // dev_log/10_homing_algorithms.md's AI Interactions.
   name: 'Nearest Car (Directional) (Returns to Lobby)',
+  description:
+    'The Nearest Car (Directional) strategy, plus one addition: an elevator that sits idle ' +
+    'longer than the configured idle return threshold heads back to floor 0 on its own, instead ' +
+    'of waiting wherever it last happened to stop — keeps the fleet positioned closer to where ' +
+    'demand usually originates, so a returning car does not have to be summoned from wherever ' +
+    'its last drop-off left it.',
   createHook: (): DispatchHook => {
     const assignments = new Map<string, Assignment>();
     const idleSince = new Map<string, number>();

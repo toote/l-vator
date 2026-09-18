@@ -243,6 +243,12 @@ function decide(elevator: ElevatorSnapshot, assignments: Map<string, Assignment>
 export const algorithm: Algorithm = {
   id: 'fcfs-nearest-car',
   name: 'FCFS / Nearest Car',
+  description:
+    'Assigns each new call to the nearest available elevator. An elevator already carrying ' +
+    'passengers only takes calls that continue its current direction and have not already been ' +
+    'passed; an empty elevator is picked by distance alone, regardless of which way it is ' +
+    'currently facing. The simplest strategy here — elevators never coordinate beyond ' +
+    '"closest wins."',
   createHook: (): DispatchHook => {
     const assignments = new Map<string, Assignment>();
     return (snapshot: DispatchSnapshot): DispatchAction[] => {
