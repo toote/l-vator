@@ -276,8 +276,13 @@ describe('computeReplayFrame: active hall calls', () => {
 
 describe('computeReplayFrame: elevator status (idle / doors open / traveling)', () => {
   // Developer-requested: show each elevator's status above it in the replay. One scenario
-  // exercising all four phases in sequence, floorTravelTimeMs = 1000:
-  //   [0, 2000)     before the first arrival -- idle (hasn't done anything yet)
+  // exercising all five phases in sequence, floorTravelTimeMs = 1000:
+  //   [0, 1000)     genuinely idle -- not yet dispatched (still parked at the implicit floor 0
+  //                 start, per positionAtTime's own convention)
+  //   [1000, 2000)  already traveling toward its first stop, BEFORE its first elevatorArrived
+  //                 entry even fires (travelStart = 2000 - 1000 = 1000) -- see this describe
+  //                 block's second `it` below, and replayFrame.ts's statusAtTime doc comment for
+  //                 why this window isn't automatically idle
   //   [2000, 5000)  a real stop: doorsOpened@2000, doorsClosed@5000 (dwell 3000ms) -- doors open
   //   [5000, 8000)  doors closed but not yet dispatched again -- idle (the "idle-then-recalled"
   //                 case -- see replayFrame.ts's "Idle-then-recalled" position regression above)
@@ -292,9 +297,24 @@ describe('computeReplayFrame: elevator status (idle / doors open / traveling)', 
   ];
   const grouped = groupReplayLog(log, ['E1'], 1000);
 
-  it('is idle before the elevator has ever arrived anywhere', () => {
+  it('is genuinely idle before dispatch, i.e. before travel toward the first arrival could have started', () => {
     expect(computeReplayFrame(grouped, 0).elevators[0].status).toEqual({ type: 'idle' });
-    expect(computeReplayFrame(grouped, 1999).elevators[0].status).toEqual({ type: 'idle' });
+    expect(computeReplayFrame(grouped, 999).elevators[0].status).toEqual({ type: 'idle' });
+  });
+
+  it('is traveling toward the first stop even BEFORE the elevator’s first-ever elevatorArrived entry -- the developer-reported regression ("destination should be the call floor, not the floor it is in")', () => {
+    // Without this, an elevator dispatched immediately at t=0 would show `idle` for its entire
+    // first leg (here, all of [0, 2000)) instead of naming where it's actually headed -- exactly
+    // the reported bug, since there's no PRIOR arrival to derive travelStart from at all unless
+    // the implicit floor-0 start is treated the same way a real prior arrival would be.
+    expect(computeReplayFrame(grouped, 1000).elevators[0].status).toEqual({
+      type: 'traveling',
+      targetFloor: 2,
+    });
+    expect(computeReplayFrame(grouped, 1999).elevators[0].status).toEqual({
+      type: 'traveling',
+      targetFloor: 2,
+    });
   });
 
   it('is doorsOpen for the entire real dwell window', () => {

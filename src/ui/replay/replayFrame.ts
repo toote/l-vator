@@ -279,7 +279,13 @@ function hallCallActiveAtTime(group: HallCallLogGroup, time: number): boolean {
  * arrival/door data `positionAtTime` and `doorsOpenAtTime` already reconstruct from, reusing
  * `positionAtTime`'s phase boundaries (see its doc comment): `[a.time or dwellClose, travelStart)`
  * is stationary (dwelling with doors open, or idle/unassigned -- doorsOpenAtTime distinguishes
- * which), `[travelStart, b.time)` is actively traveling.
+ * which), `[travelStart, b.time)` is actively traveling. This applies even BEFORE the elevator's
+ * very first `elevatorArrived` entry -- `positionAtTime` already treats "no arrival yet" as
+ * implicitly parked at floor 0 (every elevator starts there), and an elevator dispatched
+ * immediately at t=0 is genuinely traveling during `[0, firstArrival.time)`, not idle; a second
+ * developer report ("destination should be the call floor, not the floor it is in") was exactly
+ * this window incorrectly showing `idle` for the elevator's entire first leg, since there was no
+ * prior arrival to derive `travelStart` from at all.
  *
  * While traveling, `targetFloor` is NOT simply `b.floor` (the next `elevatorArrived` entry) --
  * `elevatorArrived` fires for every floor passed through, stop or not, so `b` is only ever the
@@ -301,10 +307,13 @@ function statusAtTime(
 
   const { arrivals, doorsOpened } = group;
   const arrivalIndex = countAtOrBefore(arrivals, time) - 1;
-  if (arrivalIndex < 0) return { type: 'idle' }; // hasn't done anything yet
-  if (arrivalIndex === arrivals.length - 1) return { type: 'idle' }; // nothing more happens
 
-  const b = arrivals[arrivalIndex + 1];
+  // `b`: the next arrival ahead of `time`, if any. Before the very first arrival, that's
+  // `arrivals[0]` itself (mirroring positionAtTime's implicit "starts at floor 0" treatment) --
+  // NOT automatically idle, since the elevator may already be traveling toward it.
+  const b = arrivalIndex < 0 ? arrivals[0] : arrivals[arrivalIndex + 1];
+  if (!b) return { type: 'idle' }; // nothing ahead -- either never moved, or done moving
+
   const travelStart = b.time - floorTravelTimeMs;
   if (time < travelStart) return { type: 'idle' }; // doors already closed here (or never opened),
   // not yet actually moving -- dwelling-with-doors-open was already handled above.
