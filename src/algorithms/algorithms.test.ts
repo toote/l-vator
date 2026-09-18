@@ -42,98 +42,39 @@ function arrival(
 const SAFETY_CUTOFF = { maxTimeMs: 60_000 };
 
 describe('cross-algorithm comparative sanity', () => {
-  // Amendment (post-Unit-10, at developer request): FCFS's candidate selection now prefers a
-  // genuinely idle elevator (zero car buttons) over a busy one, when one exists — a fix for a
-  // real bug where a busy elevator could hold a pickup assignment hostage indefinitely (see
-  // dev_log/03_algorithms_done.md's "Unvisited timeout" amendment). That means the ORIGINAL
-  // version of this scenario (one busy car vs. one plain idle car) no longer demonstrates FCFS's
-  // naive flaw — idle-preference now correctly picks the idle car regardless of algorithm,
-  // exactly like directional matching already did. The remaining, still-real distinction: when
-  // NO idle car exists (every candidate is busy), FCFS still ignores direction entirely while
-  // directional matching doesn't. See the dedicated hook-level test below for a precise,
-  // timing-independent proof of that; this describe block's integration scenario is redesigned
-  // to keep BOTH elevators busy at the moment 'trap' registers, so it still exercises that tier.
+  // Amendment (post-Unit-10, at developer request, second amendment): FCFS's candidate selection
+  // now also enforces direction compatibility for any elevator actually CARRYING passengers —
+  // developer-reported real bug: an elevator with 8 onboard passengers, 8 different destinations,
+  // could get assigned a brand new pickup behind it the moment it dropped someone off at an
+  // intermediate stop, before ever actually reversing to go fetch it. "Once a passenger presses a
+  // button, the elevator won't change direction to answer a call outside that commitment." See
+  // fcfsNearestCar.ts's `isCompatible` for the exact rule (byte-for-byte the same direction/
+  // position check nearestCarDirectional.ts's own `isCompatible` already used).
+  //
+  // This means FCFS and directional matching now make IDENTICAL assignment decisions whenever an
+  // elevator has real onboard passengers — the scenario this describe block used to build around
+  // (both elevators busy, one nearer-but-wrong-way) no longer distinguishes them at all; see the
+  // "converge" test below, which turns that into an explicit, intentional regression check rather
+  // than a surprise. The ONE deliberate difference left between the two algorithms: an elevator
+  // that's `moving` but has nobody onboard yet (no passenger commitment to protect) is still
+  // freely redirectable under FCFS, while nearestCarDirectional's own compatibility check keys off
+  // engine `state` (idle vs. not), so it still respects even an EMPTY car's in-progress trip. See
+  // the dedicated hook-level test below for a precise, timing-independent proof of that.
   //
   // 'e1setup' sends E1 up to floor 9 first, boards, then heads down toward its destination 0.
   // 'e2setup' (staggered to arrive at t=500, once E1 is already well up the shaft) sends E2 up
   // toward destination 10. 'trap' registers at floor 9, up, at t=1150 — by then E1 has already
-  // picked up 'e1setup' and left floor 9 heading down (its own pickup assignment released once
-  // it departed, per the overflow-handoff mechanism), but is still BUSY carrying 'e1setup'
+  // picked up 'e1setup' and left floor 9 heading down, but is still BUSY carrying 'e1setup'
   // (hasn't reached floor 0 yet) — near floor 9 (distance ~1) but heading the wrong way. E2 is
   // also busy (carrying 'e2setup' up toward floor 10) — farther from floor 9 (distance ~4) but
-  // heading the right way. Neither is idle, so idle-preference doesn't apply to either.
+  // heading the right way.
   const script = [
     arrival('e1setup', 9, 'down', 0, 0),
     arrival('e2setup', 0, 'up', 10, 500),
     arrival('trap', 9, 'up', 10, 1150),
   ];
 
-  it('FCFS ignores direction even when candidate selection now prefers idle cars: the nearer-but-wrong-way busy car still gets picked over the farther-but-compatible busy car', () => {
-    // Direct, timing-independent proof at the decision level, rather than relying on end-to-end
-    // simulation timing to expose it: hand-crafted snapshot with BOTH elevators busy (so
-    // idle-preference can't apply to either), E1 nearer but heading away, E2 farther but
-    // compatible. A second call (after each elevator's existing car button clears, revealing
-    // which one is actually pulled toward the call) shows which one was assigned.
-    function makeElevator(overrides: Partial<ElevatorSnapshot> & { id: string }): ElevatorSnapshot {
-      return {
-        currentFloor: 0,
-        state: 'moving',
-        direction: null,
-        passengerCount: 0,
-        capacityRemaining: 4,
-        carButtons: [],
-        ...overrides,
-      };
-    }
-    const busy: DispatchSnapshot = {
-      time: 1000,
-      elevators: [
-        makeElevator({ id: 'E1', currentFloor: 8, direction: 'down', carButtons: [0] }),
-        makeElevator({ id: 'E2', currentFloor: 2, direction: 'up', carButtons: [10] }),
-      ],
-      activeHallCalls: [{ floor: 9, direction: 'up' }],
-      idleReturnThresholdMs: 30000,
-      floorTravelTimeMs: 100,
-    };
-    const cleared: DispatchSnapshot = {
-      ...busy,
-      time: 1050,
-      elevators: [
-        makeElevator({ id: 'E1', currentFloor: 8, direction: 'down' }),
-        makeElevator({ id: 'E2', currentFloor: 2, direction: 'up' }),
-      ],
-    };
-
-    const fcfsHook = fcfsNearestCar.createHook();
-    fcfsHook(busy);
-    expect(fcfsHook(cleared)).toEqual([
-      { type: 'travel', elevatorId: 'E1', direction: 'up' }, // nearer, wrong-way E1 was assigned
-      { type: 'idle', elevatorId: 'E2' },
-    ]);
-
-    const directionalHook = nearestCarDirectional.createHook();
-    directionalHook(busy);
-    expect(directionalHook(cleared)).toEqual([
-      { type: 'idle', elevatorId: 'E1' }, // correctly excluded: wrong direction
-      { type: 'travel', elevatorId: 'E2', direction: 'up' }, // farther-but-compatible E2 instead
-    ]);
-  });
-
-  it('nearest-car-directional sends the farther-but-compatible car, correctly excluding the nearer-but-wrong-way one', () => {
-    const config = buildConfig();
-    const { log } = runSimulation(
-      config,
-      script,
-      nearestCarDirectional.createHook(),
-      SAFETY_CUTOFF,
-    );
-
-    const trapBoard = log.find((e) => e.type === 'passengerBoarded' && e.passengerId === 'trap');
-    expect(trapBoard).toBeDefined();
-    expect(trapBoard).toMatchObject({ elevatorId: 'E2' });
-  });
-
-  it('delivers the trapped passenger no later under directional matching than under plain FCFS', () => {
+  it('FCFS and nearest-car-directional now converge when the nearer car actually has passengers onboard: both correctly exclude the nearer-but-wrong-way car', () => {
     const config = buildConfig();
     const fcfsResult = runSimulation(config, script, fcfsNearestCar.createHook(), SAFETY_CUTOFF);
     const directionalResult = runSimulation(
@@ -143,19 +84,65 @@ describe('cross-algorithm comparative sanity', () => {
       SAFETY_CUTOFF,
     );
 
+    const fcfsBoard = fcfsResult.log.find(
+      (e) => e.type === 'passengerBoarded' && e.passengerId === 'trap',
+    );
+    const directionalBoard = directionalResult.log.find(
+      (e) => e.type === 'passengerBoarded' && e.passengerId === 'trap',
+    );
+    // Both correctly exclude the nearer-but-wrong-way E1 (busy carrying 'e1setup') and assign the
+    // farther-but-compatible E2 instead — no longer just directional matching's own behavior.
+    expect(fcfsBoard).toMatchObject({ elevatorId: 'E2' });
+    expect(directionalBoard).toMatchObject({ elevatorId: 'E2' });
+    // The two algorithms deliver at the identical time too, not just via the same car — a direct
+    // consequence of now sharing byte-for-byte identical candidate-eligibility logic whenever
+    // every candidate actually has passengers onboard.
     const fcfsDelivery = fcfsResult.log.find(
       (e) => e.type === 'passengerAlighted' && e.passengerId === 'trap',
     );
     const directionalDelivery = directionalResult.log.find(
       (e) => e.type === 'passengerAlighted' && e.passengerId === 'trap',
     );
-    expect(fcfsDelivery).toBeDefined();
-    expect(directionalDelivery).toBeDefined();
-    // Strictly less, not just <=: FCFS initially picks the wrong-way E1 (naive, ignores
-    // direction), which the unvisited-release timeout eventually corrects (reassigning to E2)
-    // once E1 fails to actually visit floor 9 — but only after that timeout elapses, so FCFS
-    // still delivers measurably later than directional matching's immediate correct pick.
-    expect(directionalDelivery!.time).toBeLessThan(fcfsDelivery!.time);
+    expect(directionalDelivery!.time).toBe(fcfsDelivery!.time);
+  });
+
+  it('the ONE surviving distinction: an empty-but-moving car (nobody onboard) is still freely redirectable under FCFS, but not under directional matching', () => {
+    // Direct, timing-independent proof at the decision level: E1 is `moving` (a stale/committed
+    // direction) but has NOBODY onboard (carButtons empty) -- nothing for either algorithm to
+    // protect, in principle, but nearestCarDirectional.ts's isCompatible keys off engine `state`
+    // (not idle -> direction/position checked regardless), while fcfsNearestCar.ts's isCompatible
+    // keys off carButtons.length === 0 (nobody onboard -> always compatible). E2 is farther but
+    // genuinely idle.
+    function makeElevator(overrides: Partial<ElevatorSnapshot> & { id: string }): ElevatorSnapshot {
+      return {
+        currentFloor: 0,
+        state: 'idle',
+        direction: null,
+        passengerCount: 0,
+        capacityRemaining: 4,
+        carButtons: [],
+        ...overrides,
+      };
+    }
+    const snapshot: DispatchSnapshot = {
+      time: 0,
+      elevators: [
+        makeElevator({ id: 'E1', currentFloor: 8, state: 'moving', direction: 'down' }),
+        makeElevator({ id: 'E2', currentFloor: 0, state: 'idle', direction: null }),
+      ],
+      activeHallCalls: [{ floor: 9, direction: 'up' }],
+      idleReturnThresholdMs: 30000,
+      floorTravelTimeMs: 100,
+    };
+
+    expect(fcfsNearestCar.createHook()(snapshot)).toEqual([
+      { type: 'travel', elevatorId: 'E1', direction: 'up' }, // nearer, empty, freely redirected
+      { type: 'idle', elevatorId: 'E2' },
+    ]);
+    expect(nearestCarDirectional.createHook()(snapshot)).toEqual([
+      { type: 'idle', elevatorId: 'E1' }, // still excluded: not idle, wrong direction
+      { type: 'travel', elevatorId: 'E2', direction: 'up' }, // farther-but-idle E2 instead
+    ]);
   });
 
   it('SCAN/LOOK is a genuinely different strategy, not a third name for one of the other two', () => {

@@ -158,11 +158,18 @@ describe('fcfsNearestCar (hook-level)', () => {
     expect(actions).toEqual([{ type: 'stop', elevatorId: 'E1' }]);
   });
 
-  it('is naive: assigns the nearer elevator to a call even though it is already moving away from it', () => {
+  it('is naive for an EMPTY car: assigns the nearer-but-committed-direction elevator to a call, since it has no onboard passenger to protect', () => {
+    // Narrower than this test's name once implied (see the "direction compatibility" amendment in
+    // dev_log/03_algorithms_done.md): FCFS no longer ignores direction for an elevator actually
+    // carrying passengers (isCompatible now excludes those, same as nearestCarDirectional.ts) --
+    // this specific scenario still passes only because E1 has EMPTY carButtons (nobody onboard),
+    // which is the one deliberate case isCompatible still treats as unconditionally compatible
+    // regardless of its `state`/`direction`. See algorithms.test.ts's "the ONE surviving
+    // distinction" test for the direct FCFS-vs-directional contrast on this exact scenario shape.
     const hook = algorithm.createHook();
     const snapshot = makeSnapshot({
       elevators: [
-        // E1 is nearby (distance 1) but already committed to moving down, away from this call.
+        // E1 is nearby (distance 1), committed to moving down, but has NOBODY onboard.
         makeElevator({ id: 'E1', currentFloor: 4, state: 'moving', direction: 'down' }),
         // E2 is farther (distance 15) but idle.
         makeElevator({ id: 'E2', currentFloor: 20 }),
@@ -172,11 +179,44 @@ describe('fcfsNearestCar (hook-level)', () => {
 
     const actions = hook(snapshot);
 
-    // FCFS ignores direction entirely — E1 is nearer, so it gets assigned despite heading the
-    // opposite way. This is exactly the flaw nearestCarDirectional.ts exists to fix (see its own
-    // "assigns the farther-but-compatible car" test for the direct contrast).
     expect(actions).toContainEqual({ type: 'travel', elevatorId: 'E1', direction: 'up' });
     expect(actions).toContainEqual({ type: 'idle', elevatorId: 'E2' });
+  });
+
+  it('does NOT reverse a car actually carrying passengers to answer a call behind it -- the developer-reported bug', () => {
+    // Direct reproduction of the reported scenario: an elevator carrying several passengers with
+    // different destinations, heading up, has just dropped one off -- several more remain
+    // onboard, still heading up. A NEW call registers at a floor already behind it (wrong
+    // direction for its committed sweep). It must NOT be assigned there; only the idle,
+    // capacity-available E2 should be a candidate.
+    const hook = algorithm.createHook();
+    const snapshot = makeSnapshot({
+      elevators: [
+        // E1 just dropped someone off at floor 1, heading up, still carrying 6 more passengers
+        // bound for floors 2-8 (capacity 8, 6 remaining onboard -> 2 spare seats).
+        makeElevator({
+          id: 'E1',
+          currentFloor: 1,
+          state: 'moving',
+          direction: 'up',
+          capacityRemaining: 2,
+          carButtons: [2, 3, 4, 5, 6, 7],
+        }),
+        makeElevator({ id: 'E2', currentFloor: 6, capacityRemaining: 4 }),
+      ],
+      // A new pickup at floor 0 -- already behind E1's current position, and 'up' can never be
+      // "ahead" for a car currently sweeping up from floor 1 (floor 0 is only reachable by first
+      // reversing).
+      activeHallCalls: [call(0, 'up')],
+    });
+
+    const actions = hook(snapshot);
+
+    // E1 stays on its own committed sweep (nearest of its own carButtons), never diverting toward
+    // the floor-0 call despite having spare capacity.
+    expect(actions).toContainEqual({ type: 'travel', elevatorId: 'E1', direction: 'up' });
+    // E2 -- idle, compatible by construction -- is the one assigned instead.
+    expect(actions).toContainEqual({ type: 'travel', elevatorId: 'E2', direction: 'down' });
   });
 
   it('leaves a call unassigned across repeated invocations until an elevator has spare capacity', () => {

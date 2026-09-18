@@ -51,6 +51,16 @@ function nearestFloor(floors: readonly FloorIndex[], from: FloorIndex): FloorInd
   return best;
 }
 
+/** See fcfsNearestCar.ts's identical function for the full rationale (developer-reported: an
+ * elevator carrying passengers shouldn't be assigned a call outside its committed direction). */
+function isCompatible(elevator: ElevatorSnapshot, call: HallCall): boolean {
+  if (elevator.carButtons.length === 0) return true;
+  if (elevator.direction !== call.direction) return false;
+  return call.direction === 'up'
+    ? elevator.currentFloor <= call.floor
+    : elevator.currentFloor >= call.floor;
+}
+
 /**
  * An assignment plus whether the assigned elevator has ever actually reached the call's floor.
  * `hasVisited` is what makes an overflow assignment releasable (see refreshAssignments) without
@@ -69,12 +79,13 @@ interface Assignment {
 const UNVISITED_RELEASE_FLOOR_MULTIPLIER = 8;
 
 /**
- * Identical to fcfsNearestCar.ts's refreshAssignments (including its "unvisited timeout" fix —
- * see that file's doc comment for the full rationale) — see that file's doc comment for the full
- * rationale. Homing plays no role here: a homing elevator (idle-but-drifting toward floor 0) is
- * still a completely ordinary candidate — no assignment, spare capacity, zero car buttons — so
- * it's picked up by this same logic exactly like any other idle elevator would be, and is in fact
- * exactly the kind of "genuinely idle" candidate the idle-preference fix below favors.
+ * Identical to fcfsNearestCar.ts's refreshAssignments (including its "unvisited timeout" and
+ * "direction compatibility" fixes — see that file's doc comments for the full rationale of both).
+ * Homing plays no role here: a homing elevator (idle-but-drifting toward floor 0) is still a
+ * completely ordinary candidate — no assignment, spare capacity, zero car buttons — so it's
+ * picked up by this same logic exactly like any other idle elevator would be, and is in fact
+ * exactly the kind of "genuinely idle, therefore always compatible" candidate isCompatible and
+ * the idle-preference step below both favor.
  */
 function refreshAssignments(
   snapshot: DispatchSnapshot,
@@ -106,13 +117,18 @@ function refreshAssignments(
   );
 
   for (const call of unassignedCalls) {
-    const allCandidates = snapshot.elevators.filter(
-      (elevator) => !assignments.has(elevator.id) && elevator.capacityRemaining > 0,
+    const compatibleCandidates = snapshot.elevators.filter(
+      (elevator) =>
+        !assignments.has(elevator.id) &&
+        elevator.capacityRemaining > 0 &&
+        isCompatible(elevator, call),
     );
-    if (allCandidates.length === 0) continue;
+    if (compatibleCandidates.length === 0) continue;
 
-    const idleCandidates = allCandidates.filter((elevator) => elevator.carButtons.length === 0);
-    const candidates = idleCandidates.length > 0 ? idleCandidates : allCandidates;
+    const idleCandidates = compatibleCandidates.filter(
+      (elevator) => elevator.carButtons.length === 0,
+    );
+    const candidates = idleCandidates.length > 0 ? idleCandidates : compatibleCandidates;
 
     let best = candidates[0];
     for (const candidate of candidates.slice(1)) {

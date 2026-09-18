@@ -61,6 +61,29 @@ function makeSnapshot(overrides: Partial<DispatchSnapshot> = {}): DispatchSnapsh
 }
 
 describe('fcfsNearestCarHoming (hook-level)', () => {
+  it('does NOT reverse a car actually carrying passengers to answer a call behind it -- mirrors fcfsNearestCar.test.ts’s identical developer-reported-bug regression', () => {
+    const hook = algorithm.createHook();
+    const snapshot = makeSnapshot({
+      elevators: [
+        makeElevator({
+          id: 'E1',
+          currentFloor: 1,
+          state: 'moving',
+          direction: 'up',
+          capacityRemaining: 2,
+          carButtons: [2, 3, 4, 5, 6, 7],
+        }),
+        makeElevator({ id: 'E2', currentFloor: 6, capacityRemaining: 4 }),
+      ],
+      activeHallCalls: [{ floor: 0, direction: 'up' }],
+    });
+
+    const actions = hook(snapshot);
+
+    expect(actions).toContainEqual({ type: 'travel', elevatorId: 'E1', direction: 'up' });
+    expect(actions).toContainEqual({ type: 'travel', elevatorId: 'E2', direction: 'down' });
+  });
+
   it('starts traveling down once idle for exactly the threshold, when not already at floor 0', () => {
     const hook = algorithm.createHook();
     const elevator = makeElevator({ id: 'E1', currentFloor: 3 });

@@ -1,12 +1,20 @@
 // FCFS / naive nearest-car dispatch algorithm. See dev_log/03_algorithms.md, "Algorithm 1".
 //
-// Assigns each active hall call to the nearest still-unassigned elevator with spare capacity,
-// in ANY movement state — idle or already moving, regardless of direction. That's what makes it
-// "naive": it will happily send a car that's already heading away from the call if that car
-// happens to be geometrically closest right now. (An earlier version of this file restricted
-// candidates to idle-only elevators, which was a bug, not a simplification — see the plan's
-// "Correction" note under Algorithm 1 for why that silently defeated the whole point of
-// contrasting this algorithm with nearestCarDirectional.ts.)
+// Assigns each active hall call to the nearest still-unassigned, capacity-available, COMPATIBLE
+// elevator (see isCompatible below) — nearest-by-distance and lowest-id-on-a-tie are what remain
+// "naive" here, not direction-blindness (see the "Direction compatibility" amendment in
+// dev_log/03_algorithms_done.md for why an earlier, fully direction-blind version of this file
+// was a real bug, not a simplification: developer-reported, an elevator carrying 8 passengers
+// with 8 different destinations could get assigned a call behind it the moment it dropped
+// someone off, before ever actually reversing to serve it — the fix below is what prevents that).
+//
+// (An even earlier version of this file restricted candidates to idle-only elevators, which was
+// ALSO a bug, not a simplification — see the plan's original "Correction" note under Algorithm 1
+// for why that silently defeated the whole point of contrasting this algorithm with
+// nearestCarDirectional.ts. That history is why this file now duplicates nearestCarDirectional.ts's
+// isCompatible logic almost exactly, rather than the two algorithms remaining structurally
+// distinct in this respect — see isCompatible's own doc comment for the one deliberate difference
+// that's left between them.)
 //
 // Remembered across invocations via an assignments map held in the hook's closure —
 // DispatchSnapshot itself carries no "already assigned" field (see the plan's "structural
@@ -43,6 +51,30 @@ function nearestFloor(floors: readonly FloorIndex[], from: FloorIndex): FloorInd
     }
   }
   return best;
+}
+
+/**
+ * Developer-reported bug fix: an elevator with onboard passengers (`carButtons` non-empty) is
+ * only a compatible candidate for a NEW call if that call continues the elevator's current
+ * direction and hasn't already been passed — the same rule nearestCarDirectional.ts's own
+ * `isCompatible` enforces, and for the same reason: once a passenger has pressed a button, this
+ * algorithm won't reverse course to answer a call outside that commitment.
+ *
+ * The one deliberate difference from nearestCarDirectional.ts's version: the escape hatch here is
+ * `carButtons.length === 0` (genuinely nobody onboard), not `elevator.state === 'idle'`. An
+ * elevator that's already `moving` toward an EARLIER assignment but has nobody onboard yet (e.g.
+ * it just delivered its last passenger and immediately picked up a new pickup assignment) has no
+ * actual passenger commitment to protect — redirecting it costs nothing. nearestCarDirectional.ts
+ * is more conservative here (it respects even an empty car's in-progress trip); this is the one
+ * remaining place this file's own "naive" character survives the fix, rather than becoming
+ * byte-for-byte identical to directional matching in every case.
+ */
+function isCompatible(elevator: ElevatorSnapshot, call: HallCall): boolean {
+  if (elevator.carButtons.length === 0) return true;
+  if (elevator.direction !== call.direction) return false;
+  return call.direction === 'up'
+    ? elevator.currentFloor <= call.floor
+    : elevator.currentFloor >= call.floor;
 }
 
 /**
@@ -140,20 +172,28 @@ function refreshAssignments(
   );
 
   for (const call of unassignedCalls) {
-    // Deliberately NOT filtered by state or direction — "naive" means any elevator without an
-    // existing assignment and with spare capacity is a candidate, even one already moving away
-    // from this call's floor.
-    const allCandidates = snapshot.elevators.filter(
-      (elevator) => !assignments.has(elevator.id) && elevator.capacityRemaining > 0,
+    // Compatible (see isCompatible above), unassigned, with spare capacity — NOT filtered by
+    // engine `state` the way nearestCarDirectional.ts's candidate filter is (see isCompatible's
+    // own doc comment for why: an empty-but-moving elevator here is still a candidate for
+    // anything, since it has no onboard passenger commitment to protect).
+    const compatibleCandidates = snapshot.elevators.filter(
+      (elevator) =>
+        !assignments.has(elevator.id) &&
+        elevator.capacityRemaining > 0 &&
+        isCompatible(elevator, call),
     );
-    if (allCandidates.length === 0) continue; // no car free this round; retried next decision point
+    if (compatibleCandidates.length === 0) continue; // no compatible car this round; retried next decision point
 
     // Prefer idle candidates: see this function's "Unvisited timeout" note. Any elevator with
     // ZERO onboard passengers has nothing that would ever take priority over honoring this
     // assignment once it's made, so it's the safer pick whenever one is available — falling back
-    // to any candidate (a "naive" pick by distance alone) only when none are fully idle.
-    const idleCandidates = allCandidates.filter((elevator) => elevator.carButtons.length === 0);
-    const candidates = idleCandidates.length > 0 ? idleCandidates : allCandidates;
+    // to any compatible candidate (a "naive" pick by distance alone) only when none are fully
+    // idle. (Every fully-idle elevator is automatically compatible per isCompatible above, so this
+    // is purely a preference among the already-compatible pool, not a second filter.)
+    const idleCandidates = compatibleCandidates.filter(
+      (elevator) => elevator.carButtons.length === 0,
+    );
+    const candidates = idleCandidates.length > 0 ? idleCandidates : compatibleCandidates;
 
     let best = candidates[0];
     for (const candidate of candidates.slice(1)) {
