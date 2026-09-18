@@ -55,11 +55,18 @@ function isCompatible(elevator: ElevatorSnapshot, call: HallCall): boolean {
  * An assignment plus whether the assigned elevator has ever actually reached the call's floor.
  * `hasVisited` is what makes an overflow assignment releasable (see refreshAssignments) without
  * also releasing an elevator that's merely still travelling toward a call it hasn't reached yet.
+ *
+ * `assignedAt` backs a second, independent release path — see refreshAssignments' "unvisited
+ * timeout" note, and fcfsNearestCar.ts's identical fix for the full rationale.
  */
 interface Assignment {
   call: HallCall;
   hasVisited: boolean;
+  assignedAt: number;
 }
+
+/** See fcfsNearestCar.ts's identical constant for the full rationale. */
+const UNVISITED_RELEASE_FLOOR_MULTIPLIER = 8;
 
 /**
  * Drops assignments whose call is no longer active, releases an assignment once its elevator has
@@ -71,6 +78,13 @@ interface Assignment {
  *
  * The release step is what lets a second elevator help with a call one elevator can't clear alone
  * (see dev_log/03_algorithms_done.md's amendment for the full "why").
+ *
+ * Unvisited timeout: see fcfsNearestCar.ts's identical fix and its "Unvisited timeout" doc
+ * comment for the full rationale — an elevator assigned to a call it never actually visits (its
+ * own onboard drop-offs always take priority in `decide()`) can hold that call hostage forever,
+ * since `hasVisited` never flips without literally reaching the floor. Fixed the same way here:
+ * candidate selection prefers a genuinely idle, compatible elevator when one exists, and any
+ * assignment unvisited past the timeout is released regardless of `hasVisited`.
  */
 function refreshAssignments(
   snapshot: DispatchSnapshot,
@@ -78,6 +92,7 @@ function refreshAssignments(
 ): void {
   const activeKeys = new Set(snapshot.activeHallCalls.map(callKey));
   const elevatorsById = new Map(snapshot.elevators.map((e) => [e.id, e]));
+  const unvisitedTimeoutMs = UNVISITED_RELEASE_FLOOR_MULTIPLIER * snapshot.floorTravelTimeMs;
 
   for (const [elevatorId, assignment] of assignments) {
     if (!activeKeys.has(callKey(assignment.call))) {
@@ -92,6 +107,8 @@ function refreshAssignments(
       // Visited, and has since left, but the call is still active: release it, so a compatible
       // elevator (possibly this one again, possibly another) is reconsidered fresh below.
       assignments.delete(elevatorId);
+    } else if (snapshot.time - assignment.assignedAt >= unvisitedTimeoutMs) {
+      assignments.delete(elevatorId); // never visited at all, and it's been too long
     }
   }
 
@@ -101,13 +118,17 @@ function refreshAssignments(
   );
 
   for (const call of unassignedCalls) {
-    const candidates = snapshot.elevators.filter(
+    const allCandidates = snapshot.elevators.filter(
       (elevator) =>
         !assignments.has(elevator.id) &&
         elevator.capacityRemaining > 0 &&
         isCompatible(elevator, call),
     );
-    if (candidates.length === 0) continue; // no compatible car this round; retried next decision
+    if (allCandidates.length === 0) continue; // no compatible car this round; retried next decision
+
+    // Prefer idle candidates — see this function's "Unvisited timeout" note.
+    const idleCandidates = allCandidates.filter((elevator) => elevator.carButtons.length === 0);
+    const candidates = idleCandidates.length > 0 ? idleCandidates : allCandidates;
 
     let best = candidates[0];
     for (const candidate of candidates.slice(1)) {
@@ -115,7 +136,11 @@ function refreshAssignments(
         best = candidate;
       }
     }
-    assignments.set(best.id, { call, hasVisited: best.currentFloor === call.floor });
+    assignments.set(best.id, {
+      call,
+      hasVisited: best.currentFloor === call.floor,
+      assignedAt: snapshot.time,
+    });
   }
 }
 

@@ -335,3 +335,80 @@ describe('fcfsNearestCar (overflow handoff to a second elevator)', () => {
     expect(actions).toEqual([{ type: 'travel', elevatorId: 'E1', direction: 'up' }]);
   });
 });
+
+describe('fcfsNearestCar (unvisited-assignment release timeout)', () => {
+  // Regression test for a real, developer-reported bug: the overflow-handoff release above only
+  // fires once an elevator has ACTUALLY visited the call floor and since left. An elevator can
+  // also be assigned to a call it never gets around to visiting AT ALL -- decide()'s target logic
+  // always prioritizes an existing onboard passenger's drop-off over an assigned-but-not-yet-
+  // reached pickup, so an elevator that's busy with unrelated obligations when it wins an
+  // assignment can hold that call hostage indefinitely, hasVisited never flipping, permanently
+  // excluding every other elevator (confirmed live: an elevator held a floor-0 pickup for 30+
+  // seconds while visibly delivering passengers ever further away, never once returning).
+  //
+  // E2 starts at zero capacity (excluded from candidacy), forcing the only other candidate, E1
+  // (busy delivering an unrelated passenger toward floor 9), to win the floor-5 assignment despite
+  // never actually heading there. E1's state (still busy, never visits floor 5) is held constant
+  // across every call; only `time` advances and E2's capacity is restored partway through, to
+  // isolate the timeout itself as the only thing that changes the outcome.
+  it('releases an assignment that has never been visited once it has been unvisited too long, even though it was never handed off mid-visit', () => {
+    const hook = algorithm.createHook();
+    const floorTravelTimeMs = 100; // UNVISITED_RELEASE_FLOOR_MULTIPLIER (8) * 100 = 800ms timeout
+
+    function elevators(e2CapacityRemaining: number) {
+      return [
+        makeElevator({ id: 'E1', currentFloor: 3, direction: 'up', carButtons: [9] }),
+        makeElevator({ id: 'E2', currentFloor: 0, capacityRemaining: e2CapacityRemaining }),
+      ];
+    }
+
+    // t=0: E2 has no room, so E1 (busy, nowhere near floor 5, heading the wrong way for it) is
+    // the ONLY candidate and gets the assignment despite never being able to promptly serve it.
+    expect(
+      hook(
+        makeSnapshot({
+          time: 0,
+          elevators: elevators(0),
+          activeHallCalls: [call(5, 'up')],
+          floorTravelTimeMs,
+        }),
+      ),
+    ).toEqual([
+      { type: 'travel', elevatorId: 'E1', direction: 'up' }, // heading to ITS OWN carButton, 9
+      { type: 'idle', elevatorId: 'E2' }, // full, nothing to do
+    ]);
+
+    // t=799 (just under the 800ms timeout), E2 now has room -- but the assignment isn't released
+    // yet, so the floor-5 call still isn't offered to E2.
+    expect(
+      hook(
+        makeSnapshot({
+          time: 799,
+          elevators: elevators(4),
+          activeHallCalls: [call(5, 'up')],
+          floorTravelTimeMs,
+        }),
+      ),
+    ).toEqual([
+      { type: 'travel', elevatorId: 'E1', direction: 'up' },
+      { type: 'idle', elevatorId: 'E2' }, // still not assigned -- E1's stale hold hasn't expired
+    ]);
+
+    // t=800: exactly at the timeout. E1 never visited floor 5 (still at floor 3 the whole time,
+    // never once matching the call's floor), so the assignment is released and immediately handed
+    // to E2 -- the only other candidate, now with capacity to take it.
+    expect(
+      hook(
+        makeSnapshot({
+          time: 800,
+          elevators: elevators(4),
+          activeHallCalls: [call(5, 'up')],
+          floorTravelTimeMs,
+        }),
+      ),
+    ).toEqual([
+      { type: 'travel', elevatorId: 'E1', direction: 'up' }, // unaffected -- still serving itself
+      { type: 'travel', elevatorId: 'E2', direction: 'up' }, // now heading to the freed call
+    ]);
+  });
+});

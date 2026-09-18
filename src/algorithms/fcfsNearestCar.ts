@@ -49,11 +49,29 @@ function nearestFloor(floors: readonly FloorIndex[], from: FloorIndex): FloorInd
  * An assignment plus whether the assigned elevator has ever actually reached the call's floor.
  * `hasVisited` is what makes an overflow assignment releasable (see refreshAssignments) without
  * also releasing an elevator that's merely still travelling toward a call it hasn't reached yet.
+ *
+ * `assignedAt` backs a second, independent release path (see refreshAssignments' "unvisited
+ * timeout" note) — an assignment can also go stale WITHOUT ever being visited at all, if the
+ * elevator picks up other obligations along the way that `decide()` always prioritizes over
+ * actually traveling to this call floor.
  */
 interface Assignment {
   call: HallCall;
   hasVisited: boolean;
+  assignedAt: number;
 }
+
+/**
+ * How many floor-crossings' worth of time an assignment may sit unvisited before it's released
+ * back to the pool regardless of `hasVisited` — see refreshAssignments' "unvisited timeout" note.
+ * Deliberately generous (allows a handful of unrelated drop-offs along the way) rather than tight,
+ * since this is a last-resort safety net, not the primary defense (candidate selection already
+ * prefers a genuinely idle elevator when one exists — see refreshAssignments' "prefer idle"
+ * note). Scaled by `floorTravelTimeMs` rather than a fixed ms constant so it stays meaningful
+ * across very different building configurations, and deliberately NOT scaled by `floorCount`
+ * (not available on `DispatchSnapshot`) — a simple, bounded heuristic, not a precise one.
+ */
+const UNVISITED_RELEASE_FLOOR_MULTIPLIER = 8;
 
 /**
  * Drops assignments whose call is no longer active, releases an assignment once its elevator has
@@ -68,6 +86,20 @@ interface Assignment {
  * was permanent for as long as the call stayed active, so an elevator that already left to deliver
  * its current load stayed "assigned" to a floor it had no way to help again anytime soon, while
  * every other elevator sat idle, structurally excluded from that same call).
+ *
+ * Unvisited timeout (developer-reported, real bug, second amendment): the release above only
+ * fires once an elevator has ACTUALLY visited the call floor and since left. An elevator can also
+ * be assigned to a call it never gets around to visiting at all — `decide()`'s target logic
+ * (`nearestFloor(carButtons, ...) ?? call?.floor`) always prioritizes an existing onboard
+ * passenger's drop-off over an assigned-but-not-yet-reached pickup, unconditionally. So an
+ * elevator that picks up a NEW assignment while it still has other obligations can end up
+ * wandering away from that assignment indefinitely, `hasVisited` staying false forever, holding
+ * the call hostage while every other, genuinely idle elevator sits unused (confirmed live: an
+ * elevator held a floor-0 pickup assignment for 30+ seconds while visibly delivering passengers
+ * up through floors 2 through 8, never once returning to floor 0). Fixed two ways: candidate
+ * selection below now prefers a genuinely idle elevator when one exists (closes the common case
+ * for free), and any assignment still unvisited after `UNVISITED_RELEASE_FLOOR_MULTIPLIER *
+ * floorTravelTimeMs` is released regardless of `hasVisited`, as a bounded worst-case safety net.
  */
 function refreshAssignments(
   snapshot: DispatchSnapshot,
@@ -75,6 +107,7 @@ function refreshAssignments(
 ): void {
   const activeKeys = new Set(snapshot.activeHallCalls.map(callKey));
   const elevatorsById = new Map(snapshot.elevators.map((e) => [e.id, e]));
+  const unvisitedTimeoutMs = UNVISITED_RELEASE_FLOOR_MULTIPLIER * snapshot.floorTravelTimeMs;
 
   for (const [elevatorId, assignment] of assignments) {
     if (!activeKeys.has(callKey(assignment.call))) {
@@ -91,6 +124,11 @@ function refreshAssignments(
       // (below, same invocation) consider every elevator fresh, including this one if it's still
       // nearest, or another one if it isn't.
       assignments.delete(elevatorId);
+    } else if (snapshot.time - assignment.assignedAt >= unvisitedTimeoutMs) {
+      // Never visited at all, and it's been too long — see this function's "Unvisited timeout"
+      // note above. Released the same way, for the same reason: this elevator isn't realistically
+      // going to get to it soon, so let someone else try.
+      assignments.delete(elevatorId);
     }
   }
 
@@ -105,10 +143,17 @@ function refreshAssignments(
     // Deliberately NOT filtered by state or direction — "naive" means any elevator without an
     // existing assignment and with spare capacity is a candidate, even one already moving away
     // from this call's floor.
-    const candidates = snapshot.elevators.filter(
+    const allCandidates = snapshot.elevators.filter(
       (elevator) => !assignments.has(elevator.id) && elevator.capacityRemaining > 0,
     );
-    if (candidates.length === 0) continue; // no car free this round; retried next decision point
+    if (allCandidates.length === 0) continue; // no car free this round; retried next decision point
+
+    // Prefer idle candidates: see this function's "Unvisited timeout" note. Any elevator with
+    // ZERO onboard passengers has nothing that would ever take priority over honoring this
+    // assignment once it's made, so it's the safer pick whenever one is available — falling back
+    // to any candidate (a "naive" pick by distance alone) only when none are fully idle.
+    const idleCandidates = allCandidates.filter((elevator) => elevator.carButtons.length === 0);
+    const candidates = idleCandidates.length > 0 ? idleCandidates : allCandidates;
 
     let best = candidates[0];
     for (const candidate of candidates.slice(1)) {
@@ -118,7 +163,11 @@ function refreshAssignments(
     }
     // `best` is now in `assignments`, so it's excluded from `candidates` on the next iteration
     // of this same loop pass.
-    assignments.set(best.id, { call, hasVisited: best.currentFloor === call.floor });
+    assignments.set(best.id, {
+      call,
+      hasVisited: best.currentFloor === call.floor,
+      assignedAt: snapshot.time,
+    });
   }
 }
 

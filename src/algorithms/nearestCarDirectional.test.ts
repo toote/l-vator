@@ -144,3 +144,64 @@ describe('nearestCarDirectional (hook-level)', () => {
     expect(actions).toContainEqual({ type: 'stop', elevatorId: 'E2' });
   });
 });
+
+describe('nearestCarDirectional (unvisited-assignment release timeout)', () => {
+  // Mirrors fcfsNearestCar.test.ts's identical regression test -- see that file's doc comment for
+  // the full rationale. E1 is compatible (direction 'up', hasn't passed floor 5) but busy with an
+  // unrelated carButton (9) it always prioritizes, so it never actually visits floor 5 despite
+  // being assigned there; E2 starts at zero capacity, then gets capacity restored partway through
+  // to isolate the timeout as the only thing that changes the outcome.
+  it('releases an assignment that has never been visited once it has been unvisited too long', () => {
+    const hook = algorithm.createHook();
+    const floorTravelTimeMs = 100; // UNVISITED_RELEASE_FLOOR_MULTIPLIER (8) * 100 = 800ms timeout
+
+    function elevators(e2CapacityRemaining: number) {
+      return [
+        makeElevator({ id: 'E1', currentFloor: 3, direction: 'up', carButtons: [9] }),
+        makeElevator({ id: 'E2', currentFloor: 0, capacityRemaining: e2CapacityRemaining }),
+      ];
+    }
+
+    expect(
+      hook(
+        makeSnapshot({
+          time: 0,
+          elevators: elevators(0),
+          activeHallCalls: [call(5, 'up')],
+          floorTravelTimeMs,
+        }),
+      ),
+    ).toEqual([
+      { type: 'travel', elevatorId: 'E1', direction: 'up' },
+      { type: 'idle', elevatorId: 'E2' },
+    ]);
+
+    expect(
+      hook(
+        makeSnapshot({
+          time: 799,
+          elevators: elevators(4),
+          activeHallCalls: [call(5, 'up')],
+          floorTravelTimeMs,
+        }),
+      ),
+    ).toEqual([
+      { type: 'travel', elevatorId: 'E1', direction: 'up' },
+      { type: 'idle', elevatorId: 'E2' }, // still not assigned -- E1's stale hold hasn't expired
+    ]);
+
+    expect(
+      hook(
+        makeSnapshot({
+          time: 800,
+          elevators: elevators(4),
+          activeHallCalls: [call(5, 'up')],
+          floorTravelTimeMs,
+        }),
+      ),
+    ).toEqual([
+      { type: 'travel', elevatorId: 'E1', direction: 'up' },
+      { type: 'travel', elevatorId: 'E2', direction: 'up' }, // now heading to the freed call
+    ]);
+  });
+});
