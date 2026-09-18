@@ -49,32 +49,32 @@ export const METRIC_DIRECTIONS: Record<MetricKey, 'lower' | 'higher'> = {
 };
 
 /**
- * The single algorithm with the best (per `direction`) value for `key` across `metrics`, or
- * `null` when every value is null (nobody has a measurable value for that metric) or when the
- * best value is tied across two or more algorithms -- a tie has no single "best" to highlight.
+ * Every algorithm sharing the best (per `direction`) value for `key` across `metrics` -- usually
+ * one, but ALL of them on a tie (developer-reported: highlighting nobody on a tie reads as "no
+ * best exists here" when really several algorithms equally share it -- a tie is a fact worth
+ * showing, not a reason to hide the result). Empty when every value is null (nobody has a
+ * measurable value for that metric).
  */
-export function bestAlgorithmId(
+export function bestAlgorithmIds(
   metrics: readonly AlgorithmMetrics[],
   key: MetricKey,
   direction: 'lower' | 'higher',
-): string | null {
+): ReadonlySet<string> {
   let bestValue: number | null = null;
-  let bestId: string | null = null;
-  let tied = false;
+  let bestIds: string[] = [];
 
   for (const m of metrics) {
     const value = m[key];
     if (value === null) continue;
     if (bestValue === null || (direction === 'lower' ? value < bestValue : value > bestValue)) {
       bestValue = value;
-      bestId = m.algorithmId;
-      tied = false;
+      bestIds = [m.algorithmId];
     } else if (value === bestValue) {
-      tied = true;
+      bestIds.push(m.algorithmId);
     }
   }
 
-  return tied ? null : bestId;
+  return new Set(bestIds);
 }
 
 interface ColumnDef {
@@ -166,12 +166,12 @@ export function renderDashboardTable(
 ): HTMLTableElement {
   const table = document.createElement('table');
 
-  const bestByColumn = new Map<MetricKey, string | null>();
+  const bestByColumn = new Map<MetricKey, ReadonlySet<string>>();
   for (const column of COLUMNS) {
     if (column.metricKey) {
       bestByColumn.set(
         column.metricKey,
-        bestAlgorithmId(metrics, column.metricKey, METRIC_DIRECTIONS[column.metricKey]),
+        bestAlgorithmIds(metrics, column.metricKey, METRIC_DIRECTIONS[column.metricKey]),
       );
     }
   }
@@ -221,7 +221,7 @@ export function renderDashboardTable(
       } else {
         td.textContent = column.format(row);
       }
-      if (column.metricKey && bestByColumn.get(column.metricKey) === row.algorithmId) {
+      if (column.metricKey && bestByColumn.get(column.metricKey)?.has(row.algorithmId)) {
         td.style.fontWeight = 'bold';
         // Derived purely from --text/--bg (no hardcoded color) so the highlight stays correct
         // in dark mode too.
