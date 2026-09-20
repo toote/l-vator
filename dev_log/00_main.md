@@ -41,7 +41,7 @@ The initial interaction mode is **configured batch simulation** (set parameters,
 
 ### Completed Features
 
-- Working Vite + TS project shell: dev server, static build (base `/L-vator/`), ESLint + Prettier, Vitest, GitHub Actions Pages deploy pipeline (untested end-to-end — not yet pushed to a remote).
+- Working Vite + TS project shell: dev server, static build (base `/l-vator/`, matching the actual repo name — see `01_scaffolding_done.md`'s amendment for a case-mismatch bug this caused), ESLint + Prettier, Vitest, GitHub Actions Pages deploy pipeline.
 - Headless discrete-event simulation engine (`src/engine/`): event queue, elevator state machine, floor-to-floor movement, capacity/overflow, presence-only hall calls, door-dwell timing, event log, and the `DispatchHook` seam for algorithms to plug into.
 - Twelve dispatch algorithms (`src/algorithms/`), each with a "returns to lobby when idle" homing variant: nearest-car with directional matching, SCAN/LOOK, zoning (strict and with-fallback), ETA-based cost estimation, and random dispatch (deterministic/seed-reproducible) — auto-discovered via `import.meta.glob`, each with a plain-language description shown in the UI, including overflow-handoff logic so a second elevator can help when one can't keep up with demand alone. (FCFS/naive nearest-car — the original third algorithm — was removed in Unit 11 once its behavior converged almost entirely with directional matching; see `03_algorithms_done.md` and `11_algorithm_expansion.md`.)
 - Call generation (`src/generation/`, `src/scenarios/`): seeded random arrivals (up-peak/down-peak/random/lunch-peak patterns), scripted scenarios, and the fairness-guaranteed trial batch/runner every algorithm comparison runs through.

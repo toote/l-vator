@@ -2,7 +2,7 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/L-vator/',
+  base: '/l-vator/',
   test: {
     globals: false,
   },
